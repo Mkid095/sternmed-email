@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase, EmailInbound } from '../../config/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
-import { Inbox, MailOpen, Star, Trash2, RefreshCw, Mail } from 'lucide-react'
+import { Inbox, MailOpen, Star, RefreshCw, Mail } from 'lucide-react'
 
 export default function InboxView() {
   const { emailAliasId } = useAuthStore()

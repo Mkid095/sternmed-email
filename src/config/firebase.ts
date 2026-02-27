@@ -1,6 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut, User as FirebaseUser } from 'firebase/auth'
-import { getDatabase, ref, get, set } from 'firebase/database'
+import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,

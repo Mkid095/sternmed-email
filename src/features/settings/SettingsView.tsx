@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { supabase } from '../../config/supabase'
-import { User, Bell, Lock, Key } from 'lucide-react'
-import { auth } from '../../config/firebase'
+import { User, Lock, Key } from 'lucide-react'
 
 export default function SettingsView() {
   const { user, emailAliasId, logout } = useAuthStore()

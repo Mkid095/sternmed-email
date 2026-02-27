@@ -62,14 +62,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (email: string, password: string) => {
-    const result = await signIn(email, password)
+    await signIn(email, password)
     const { initialize } = get()
-    
+
     // Wait for user data to be loaded
     await new Promise(resolve => setTimeout(resolve, 500))
     await initialize()
-    
-    return result
   },
 
   logout: async () => {

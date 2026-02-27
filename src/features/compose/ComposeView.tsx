@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Send, X, Plus, Trash2, File, Paperclip, Bold, Italic, Underline, List, Minus } from 'lucide-react'
+import { Send, Trash2, File, Paperclip, Bold, Italic, Underline, List } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { supabase } from '../../config/supabase'
 
@@ -9,7 +9,7 @@ interface EmailAttachment {
   name: string
   size: number
   type: string
-  file: File
+  file?: File
 }
 
 interface DraftData {

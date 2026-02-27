@@ -1,7 +1,11 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 
-export function EmailAuthGuard() {
+interface EmailAuthGuardProps {
+  children?: React.ReactNode
+}
+
+export function EmailAuthGuard({ children }: EmailAuthGuardProps) {
   const { user, emailAliasId, loading } = useAuthStore()
 
   if (loading) {
@@ -19,5 +23,5 @@ export function EmailAuthGuard() {
     return <Navigate to="/login" replace />
   }
 
-  return <Outlet />
+  return <>{children || <Outlet />}</>
 }

@@ -9,7 +9,6 @@ import {
   File
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { supabase } from '../config/supabase'
 
 const navItems = [
   { path: '/inbox', icon: Inbox, label: 'Inbox' },
