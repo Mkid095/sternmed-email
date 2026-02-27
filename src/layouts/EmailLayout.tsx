@@ -18,6 +18,8 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
+const COMPANY_LOGO = 'https://res.cloudinary.com/dxb22swfg/image/upload/v1765747561/Asset_4_v5ksi6.png'
+
 export default function EmailLayout() {
   const location = useLocation()
   const { user, logout, emailAliasId } = useAuthStore()
@@ -34,7 +36,7 @@ export default function EmailLayout() {
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center overflow-hidden">
               <Inbox className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -42,15 +44,24 @@ export default function EmailLayout() {
               <p className="text-xs text-gray-500">Email Platform</p>
             </div>
           </div>
+          <div className="mt-4 flex items-center gap-2 px-2 py-2 bg-gray-50 rounded-lg">
+            <img
+              src={COMPANY_LOGO}
+              alt="Sternmed Afrika"
+              className="h-6 w-auto"
+              referrerPolicy="no-referrer"
+            />
+            <span className="text-xs text-gray-600 font-medium">Sternmed Afrika</span>
+          </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = location.pathname === item.path || 
+            const isActive = location.pathname === item.path ||
                             (item.path !== '/inbox' && location.pathname.startsWith(item.path))
-            
+
             return (
               <Link
                 key={item.path}
@@ -72,8 +83,8 @@ export default function EmailLayout() {
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-gray-600" />
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                {(user?.email || 'U')[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
