@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import { auth, signIn, signOut } from '../config/firebase'
 import { supabase, User } from '../config/supabase'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
 
 interface AuthState {
   user: User | null
-  firebaseUser: any | null
+  firebaseUser: FirebaseUser | null
   emailAliasId: string | undefined
   emailAlias: any | null
   loading: boolean
@@ -29,9 +29,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { initialized } = get()
     if (initialized) return
 
-    try {
-      onAuthStateChanged(auth, async (firebaseUser) => {
-        set({ firebaseUser, loading: true })
+    return new Promise<void>((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        unsubscribe() // Unsubscribe after first call
 
         if (firebaseUser) {
           // Fetch user profile from Supabase
@@ -43,22 +43,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
           if (data && !error) {
             set({
+              firebaseUser,
               user: data as User,
               emailAliasId: data.email_alias_id || undefined,
               loading: false,
               initialized: true,
             })
           } else {
-            set({ user: null, loading: false, initialized: true })
+            set({
+              firebaseUser,
+              user: null,
+              emailAliasId: undefined,
+              loading: false,
+              initialized: true,
+            })
           }
         } else {
-          set({ user: null, emailAliasId: undefined, loading: false, initialized: true })
+          set({
+            user: null,
+            firebaseUser: null,
+            emailAliasId: undefined,
+            loading: false,
+            initialized: true,
+          })
         }
+        resolve()
       })
-    } catch (error) {
-      console.error('Auth initialization error:', error)
-      set({ loading: false, initialized: true })
-    }
+    })
   },
 
   login: async (email: string, password: string) => {

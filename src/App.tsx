@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { EmailAuthGuard } from './guards/EmailAuthGuard'
 import EmailLogin from './features/auth/EmailLogin'
 import EmailLayout from './layouts/EmailLayout'
@@ -10,7 +11,12 @@ import SettingsView from './features/settings/SettingsView'
 import { useAuthStore } from './store/authStore'
 
 function App() {
-  const { user, loading, emailAliasId } = useAuthStore()
+  const { user, loading, emailAliasId, initialize } = useAuthStore()
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initialize()
+  }, [])
 
   if (loading) {
     return (
