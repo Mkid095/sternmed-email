@@ -4,6 +4,7 @@ import EmailLogin from './features/auth/EmailLogin'
 import EmailLayout from './layouts/EmailLayout'
 import InboxView from './features/inbox/InboxView'
 import SentView from './features/sent/SentView'
+import DraftsView from './features/drafts/DraftsView'
 import ComposeView from './features/compose/ComposeView'
 import SettingsView from './features/settings/SettingsView'
 import { useAuthStore } from './store/authStore'
@@ -45,6 +46,7 @@ function App() {
         <Route index element={<Navigate to="/inbox" replace />} />
         <Route path="inbox" element={<InboxView />} />
         <Route path="sent" element={<SentView />} />
+        <Route path="drafts" element={<DraftsView />} />
         <Route path="compose" element={<ComposeView />} />
         <Route path="settings" element={<SettingsView />} />
       </Route>

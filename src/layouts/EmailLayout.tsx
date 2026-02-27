@@ -1,11 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { 
-  Inbox, 
-  Send, 
-  PenSquare, 
-  Settings, 
+import {
+  Inbox,
+  Send,
+  PenSquare,
+  Settings,
   LogOut,
-  User
+  User,
+  File
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { supabase } from '../config/supabase'
@@ -13,6 +14,7 @@ import { supabase } from '../config/supabase'
 const navItems = [
   { path: '/inbox', icon: Inbox, label: 'Inbox' },
   { path: '/sent', icon: Send, label: 'Sent' },
+  { path: '/drafts', icon: File, label: 'Drafts' },
   { path: '/compose', icon: PenSquare, label: 'Compose' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]

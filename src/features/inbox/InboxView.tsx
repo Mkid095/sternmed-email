@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase, EmailInbound } from '../../config/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
-import { Inbox, MailOpen, Star, Trash2, RefreshCw } from 'lucide-react'
+import { Inbox, MailOpen, Star, Trash2, RefreshCw, Mail } from 'lucide-react'
 
 export default function InboxView() {
   const { emailAliasId } = useAuthStore()
@@ -38,8 +38,18 @@ export default function InboxView() {
       .from('email_inbound')
       .update({ is_read: true })
       .eq('id', id)
-    
+
     setEmails(emails.map(e => e.id === id ? { ...e, is_read: true } : e))
+  }
+
+  const markAsUnread = async (id: string) => {
+    await supabase
+      .from('email_inbound')
+      .update({ is_read: false })
+      .eq('id', id)
+
+    setEmails(emails.map(e => e.id === id ? { ...e, is_read: false } : e))
+    setSelectedId(null) // Clear selection to show the unread indicator
   }
 
   const toggleStar = async (id: string) => {
@@ -148,9 +158,19 @@ export default function InboxView() {
           <>
             {/* Header */}
             <div className="p-6 border-b border-gray-200">
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                {selectedEmail.subject || '(No subject)'}
-              </h1>
+              <div className="flex items-start justify-between mb-4">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {selectedEmail.subject || '(No subject)'}
+                </h1>
+                <button
+                  onClick={() => markAsUnread(selectedEmail.id)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Mark as Unread"
+                >
+                  <Mail className="w-4 h-4" />
+                  Mark as Unread
+                </button>
+              </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
