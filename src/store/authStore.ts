@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (initialized) return
 
     // Set up persistent auth state listener
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         // Fetch user profile from Supabase
         const { data, error } = await supabase
@@ -68,9 +68,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         })
       }
     })
-
-    // Return cleanup function (optional)
-    return unsubscribe
   },
 
   login: async (email: string, password: string) => {

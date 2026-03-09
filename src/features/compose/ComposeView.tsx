@@ -37,6 +37,7 @@ export default function ComposeView() {
   const [draftId, setDraftId] = useState<string | null>(null)
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
+  const [aliasEmail, setAliasEmail] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -140,6 +141,22 @@ export default function ComposeView() {
     }
   }, [])
 
+  // Fetch alias email for display
+  useEffect(() => {
+    const fetchAliasEmail = async () => {
+      if (!emailAliasId) return
+      const { data } = await supabase
+        .from('email_aliases')
+        .select('alias_email')
+        .eq('id', emailAliasId)
+        .single()
+      if (data) {
+        setAliasEmail(data.alias_email)
+      }
+    }
+    fetchAliasEmail()
+  }, [emailAliasId])
+
   const handleSend = async () => {
     if (!emailAliasId) {
       alert('No email alias configured')
@@ -154,15 +171,22 @@ export default function ComposeView() {
     setSending(true)
 
     try {
-      // Get alias details
-      const { data: alias } = await supabase
+      // 1. Fetch alias email address
+      const { data: alias, error: aliasError } = await supabase
         .from('email_aliases')
         .select('alias_email')
         .eq('id', emailAliasId)
         .single()
 
-      // Store in email_outbound as pending
-      const { error } = await supabase
+      if (aliasError || !alias) {
+        throw new Error('Failed to fetch alias email address')
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      // 2. Insert as pending first
+      const { data: outbound, error: insertError } = await supabase
         .from('email_outbound')
         .insert({
           alias_id: emailAliasId,
@@ -174,8 +198,49 @@ export default function ComposeView() {
           body_text: body,
           status: 'pending',
         })
+        .select()
+        .single()
 
-      if (error) throw error
+      if (insertError) throw insertError
+
+      // 3. Send via Resend Edge Function
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          to,
+          subject,
+          html: body.replace(/\n/g, '<br>'),
+          text: body,
+          from: alias.alias_email,
+          cc: cc ? [cc] : undefined,
+          bcc: bcc ? [bcc] : undefined,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to send email: ${response.status}`)
+      }
+
+      // 4. Update to sent with Resend message ID
+      await supabase
+        .from('email_outbound')
+        .update({
+          status: 'sent',
+          external_message_id: result.messageId || `msg_${outbound.id}`,
+          sent_at: new Date().toISOString(),
+        })
+        .eq('id', outbound.id)
+
+      // 5. Increment rate limit counter
+      await supabase.rpc('increment_email_count', {
+        p_alias_id: emailAliasId,
+      })
 
       // Delete draft after sending
       if (draftId) {
@@ -194,7 +259,14 @@ export default function ComposeView() {
       navigate('/sent')
     } catch (error) {
       console.error('Error sending email:', error)
-      alert('Failed to send email')
+
+      // If we created a pending record, mark it as failed
+      if (draftId) {
+        await supabase.from('email_drafts').delete().eq('id', draftId)
+        setDraftId(null)
+      }
+
+      alert('Failed to send email: ' + (error instanceof Error ? error.message : String(error)))
     } finally {
       setSending(false)
     }
@@ -437,7 +509,7 @@ export default function ComposeView() {
       {/* Footer Actions */}
       <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          From: {user?.email}
+          From: {aliasEmail || user?.email || 'No alias configured'}
         </p>
         <button
           onClick={handleSend}
