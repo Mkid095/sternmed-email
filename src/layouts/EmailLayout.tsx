@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useTheme } from '../contexts/ThemeContext'
-import ComposeModal from '../features/compose/ComposeModal'
+import { useEmailModalStore } from '../features/inbox/useEmailModalStore'
+import EmailDetailModal from '../features/inbox/EmailDetailModal'
 import {
   HamburgerIcon,
   SearchIcon,
@@ -37,6 +38,7 @@ export default function EmailLayout() {
   const [showMore, setShowMore] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [globalSearchQuery, setGlobalSearchQuery] = useState('')
+  const emailModalStore = useEmailModalStore()
 
   const currentPath = location.pathname
 
@@ -241,8 +243,11 @@ export default function EmailLayout() {
         </main>
       </div>
 
-      {/* ── COMPOSE MODAL ── */}
-      <ComposeModal isOpen={composeOpen} onClose={() => setComposeOpen(false)} />
+      {/* ── EMAIL DETAIL MODAL ── */}
+      <EmailDetailModal />
+
+      {/* ── COMPOSE WINDOW MANAGER ── */}
+      {/* Will be added in next step */}
     </div>
   )
 }
