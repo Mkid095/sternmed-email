@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
-import { Star, RefreshCw, Search, MailOpen, Mail } from 'lucide-react'
+import { Star, RefreshCw, Search, MailOpen } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
+import { PaperclipIcon } from '../../components/icons'
 import type { EmailInbound } from '../../types'
 
 interface ThreadGroup {
@@ -356,7 +357,7 @@ export default function InboxView() {
                             className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm"
                             style={{ backgroundColor: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.divider}` }}
                           >
-                            📎 {att.filename}
+                            <PaperclipIcon size={14} /> {att.filename}
                             <span style={{ color: colors.textTertiary }}>({(att.size / 1024).toFixed(1)} KB)</span>
                           </span>
                         ))}

@@ -7,6 +7,7 @@ import { File, Edit, Trash2, RefreshCw, Search } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
+import { CloseIcon } from '../../components/icons'
 import type { EmailOutbound } from '../../types'
 
 export default function DraftsView() {
@@ -277,7 +278,7 @@ export default function DraftsView() {
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                   style={{ color: colors.textSecondary }}
                 >
-                  ✕
+                  <CloseIcon size={16} />
                 </button>
               </div>
 

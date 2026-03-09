@@ -6,26 +6,23 @@ import ComposeModal from '../features/compose/ComposeModal'
 import {
   HamburgerIcon,
   SearchIcon,
-  FilterIcon,
-  HelpIcon,
   SettingsIcon,
-  AppsIcon,
   ComposeIcon,
   InboxIcon,
   StarIcon,
-  SnoozedIcon,
   SentIcon,
   DraftsIcon,
-  ChevronDownIcon,
-  LabelIcon,
-  MoreIcon,
-  CloseIcon,
+  ChevronRightIcon,
+  LogOutIcon,
+  SunIcon,
+  MoonIcon,
 } from '../components/icons'
+
+const COMPANY_LOGO = 'https://res.cloudinary.com/dxb22swfg/image/upload/v1765747561/Asset_4_v5ksi6.png'
 
 const navItems = [
   { label: 'Inbox', icon: InboxIcon, path: '/inbox' },
   { label: 'Starred', icon: StarIcon, path: '/starred' },
-  { label: 'Snoozed', icon: SnoozedIcon, path: '/snoozed' },
   { label: 'Sent', icon: SentIcon, path: '/sent' },
   { label: 'Drafts', icon: DraftsIcon, path: '/drafts' },
 ]
@@ -36,7 +33,7 @@ export default function EmailLayout() {
   const { user, emailAliasId, logout } = useAuthStore()
   const { colors, toggleTheme } = useTheme()
 
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
 
@@ -56,46 +53,47 @@ export default function EmailLayout() {
       className="h-screen flex flex-col overflow-hidden"
       style={{
         backgroundColor: colors.background,
-        fontFamily: "'Google Sans', Roboto, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       }}
     >
       {/* ── TOP BAR ── */}
       <header
-        className="flex items-center px-3 gap-2 flex-shrink-0"
+        className="flex items-center flex-shrink-0 transition-all duration-300"
         style={{
           height: '64px',
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface,
           borderBottom: `1px solid ${colors.divider}`,
+          paddingLeft: sidebarCollapsed ? '12px' : '16px',
         }}
       >
         {/* Left: hamburger + logo */}
-        <div className="flex items-center gap-2" style={{ width: sidebarOpen ? '248px' : 'auto', flexShrink: 0 }}>
+        <div className="flex items-center gap-3" style={{ width: sidebarCollapsed ? '48px' : '240px', flexShrink: 0 }}>
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            style={{ color: colors.textSecondary }}
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-2 rounded-lg transition-all duration-200"
+            style={{
+              color: colors.textSecondary,
+              backgroundColor: colors.surfaceHover,
+            }}
+            title={sidebarCollapsed ? 'Expand menu' : 'Collapse menu'}
           >
             <HamburgerIcon />
           </button>
 
-          {sidebarOpen && (
+          {!sidebarCollapsed && (
             <div
-              className="flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-3 cursor-pointer"
               onClick={() => navigate('/')}
             >
-              <div className="w-8 h-8 flex items-center justify-center rounded">
-                <svg width="32" height="32" viewBox="0 0 40 29">
-                  <path fill="#4285F4" d="M0 28.5V7.5L20 19 40 7.5V28.5H0Z"/>
-                  <path fill="#34A853" d="M40 7.5V28.5h-6V12.5L20 23 6 12.5v16H0V7.5l20 12z" opacity="0"/>
-                  <path fill="#EA4335" d="M0 7.5L20 19.5 40 7.5 20 0z"/>
-                  <path fill="#FBBC05" d="M0 7.5v21h6V12.5z"/>
-                  <path fill="#34A853" d="M40 7.5v21h-6V12.5z"/>
-                  <path fill="#C5221F" d="M0 7.5L20 0l20 7.5-20 12z" opacity="0"/>
-                </svg>
-              </div>
+              <img
+                src={COMPANY_LOGO}
+                alt="Sternmed Afrika"
+                className="h-8 w-auto"
+                style={{ height: '32px' }}
+              />
               <span
-                className="text-xl font-normal"
-                style={{ color: colors.textPrimary, letterSpacing: '-0.3px' }}
+                className="text-lg font-semibold"
+                style={{ color: colors.textPrimary }}
               >
                 Sternmed Mail
               </span>
@@ -106,11 +104,10 @@ export default function EmailLayout() {
         {/* Center: search bar */}
         <div className="flex-1 max-w-2xl mx-4">
           <div
-            className="flex items-center gap-3 px-4 py-2 rounded-full"
+            className="flex items-center gap-3 px-4 py-2 rounded-full transition-all duration-200"
             style={{
               backgroundColor: colors.searchBackground,
-              border: `1px solid transparent`,
-              transition: 'border-color 0.2s',
+              border: `1px solid ${colors.border}`,
             }}
           >
             <SearchIcon />
@@ -120,52 +117,42 @@ export default function EmailLayout() {
               className="flex-1 bg-transparent outline-none text-sm"
               style={{ color: colors.textPrimary }}
             />
-            <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-              <FilterIcon />
-            </button>
           </div>
         </div>
 
-        {/* Right: action icons */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Right: actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Theme toggle */}
           <button
-            onClick={() => handleCompose()}
-            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors"
-            style={{ backgroundColor: colors.primary, color: 'white' }}
+            onClick={toggleTheme}
+            className="p-2 rounded-lg transition-all duration-200"
+            style={{
+              backgroundColor: colors.surfaceHover,
+              color: colors.textSecondary,
+            }}
+            title={colors.background === '#0f172a' ? 'Light mode' : 'Dark mode'}
           >
-            <ComposeIcon />
-            {sidebarOpen && 'Compose'}
+            {colors.background === '#0f172a' ? <SunIcon /> : <MoonIcon />}
           </button>
 
+          {/* Settings */}
           <button
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-            style={{ color: colors.textSecondary }}
-            title="Help"
-          >
-            <HelpIcon />
-          </button>
-
-          <button
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-            style={{ color: colors.textSecondary }}
-            title="Settings"
             onClick={() => navigate('/settings')}
+            className="p-2 rounded-lg transition-all duration-200"
+            style={{
+              backgroundColor: colors.surfaceHover,
+              color: colors.textSecondary,
+            }}
+            title="Settings"
           >
             <SettingsIcon />
           </button>
 
-          <button
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-            style={{ color: colors.textSecondary }}
-            title="Theme"
-            onClick={toggleTheme}
-          >
-            {colors.background === '#0d1117' ? '☀️' : '🌙'}
-          </button>
-
+          {/* User avatar */}
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-medium cursor-pointer border"
-            style={{ backgroundColor: colors.primary, borderColor: colors.divider }}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-medium cursor-pointer transition-all duration-200"
+            style={{ backgroundColor: colors.primary }}
+            title={user?.email}
           >
             {getInitials(user?.email)}
           </div>
@@ -175,143 +162,70 @@ export default function EmailLayout() {
       {/* ── BODY ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── SIDEBAR ── */}
-        {sidebarOpen && (
-          <aside
-            className="flex flex-col overflow-y-auto"
-            style={{ width: '256px', padding: '8px 0 16px' }}
+        <aside
+          className="flex flex-col border-r transition-all duration-300 overflow-y-auto"
+          style={{
+            width: sidebarCollapsed ? '64px' : '240px',
+            backgroundColor: colors.surface,
+            borderColor: colors.divider,
+            padding: sidebarCollapsed ? '12px 8px' : '8px',
+          }}
+        >
+          {/* Compose Button */}
+          <button
+            onClick={() => handleCompose()}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-medium transition-all duration-200 text-white mb-4"
+            style={{ backgroundColor: colors.primary }}
+            title={sidebarCollapsed ? 'Compose' : undefined}
           >
-            {/* Compose Button (duplicate for accessibility) */}
-            <div className="px-3 pb-2">
-              <button
-                onClick={() => handleCompose()}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-full text-sm font-medium transition-colors"
-                style={{ backgroundColor: colors.primary, color: 'white' }}
-              >
-                <ComposeIcon />
-                Compose
-              </button>
-            </div>
+            <ComposeIcon />
+            {!sidebarCollapsed && 'Compose'}
+          </button>
 
-            {/* Navigation */}
-            <nav className="flex-1">
-              {navItems.map(({ label, icon: Icon, path }) => {
-                const isActive = currentPath === path || (label === 'Inbox' && currentPath === '/')
-                return (
-                  <button
-                    key={label}
-                    onClick={() => navigate(path)}
-                    className="w-full flex items-center gap-4 px-3 py-2 mx-1 rounded-lg transition-colors text-left"
-                    style={{
-                      backgroundColor: isActive ? colors.selected : 'transparent',
-                      color: isActive ? colors.primary : colors.textPrimary,
-                      fontWeight: isActive ? 700 : 400,
-                    }}
-                  >
-                    <span style={{ color: isActive ? colors.primary : colors.textSecondary }}>
-                      <Icon />
-                    </span>
-                    <span className="flex-1">{label}</span>
-                  </button>
-                )
-              })}
-
-              {/* More */}
-              <button
-                onClick={() => setShowMore(!showMore)}
-                className="w-full flex items-center gap-4 px-3 py-2 mx-1 rounded-lg transition-colors text-left"
-                style={{
-                  backgroundColor: showMore ? colors.surfaceHover : 'transparent',
-                  color: colors.textSecondary,
-                }}
-              >
-                <span style={{ transform: showMore ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                  <ChevronDownIcon />
-                </span>
-                <span className="flex-1">{showMore ? 'Less' : 'More'}</span>
-              </button>
-
-              {/* Labels */}
-              <div className="px-3 py-2 mt-2 border-t" style={{ borderColor: colors.divider }}>
-                <div className="flex items-center justify-between px-2 mb-1">
-                  <span
-                    className="text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: colors.textTertiary }}
-                  >
-                    Labels
+          {/* Navigation */}
+          <nav className="flex-1 space-y-1">
+            {navItems.map(({ label, icon: Icon, path }) => {
+              const isActive = currentPath === path || (label === 'Inbox' && currentPath === '/')
+              return (
+                <button
+                  key={label}
+                  onClick={() => navigate(path)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-left group"
+                  style={{
+                    backgroundColor: isActive ? colors.selected : 'transparent',
+                    color: isActive ? colors.primary : colors.textSecondary,
+                  }}
+                  title={sidebarCollapsed ? label : undefined}
+                >
+                  <span className="flex-shrink-0">
+                    <Icon />
                   </span>
-                  <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                    <LabelIcon style={{ color: colors.textSecondary }} />
-                  </button>
-                </div>
-
-                <button
-                  className="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg text-sm transition-colors text-left"
-                  style={{
-                    color: colors.textSecondary,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <span className="w-4 h-4 rounded-sm" style={{ backgroundColor: '#7cb342' }} />
-                  Personal
+                  {!sidebarCollapsed && (
+                    <span className="flex-1 text-sm font-medium truncate">
+                      {label}
+                    </span>
+                  )}
                 </button>
+              )
+            })}
+          </nav>
 
-                <button
-                  className="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg text-sm transition-colors text-left"
-                  style={{
-                    color: colors.textSecondary,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <span className="w-4 h-4 rounded-sm" style={{ backgroundColor: '#43a047' }} />
-                  Receipts
-                </button>
-
-                <button
-                  className="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg text-sm transition-colors text-left"
-                  style={{
-                    color: colors.textSecondary,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <span className="w-4 h-4 rounded-sm" style={{ backgroundColor: '#1565c0' }} />
-                  Medical
-                </button>
-              </div>
-            </nav>
-
-            {/* Storage/Upgrade */}
-            <div className="px-3 py-2 border-t" style={{ borderColor: colors.divider }}>
-              <div className="flex items-center gap-2 px-2 text-sm mb-1" style={{ color: colors.textSecondary }}>
-                <span className="flex-1">Storage</span>
-                <span>7.5 GB of 15 GB</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: '50%' }} />
-              </div>
-            </div>
-
+          {/* Bottom section */}
+          <div className="pt-4 border-t" style={{ borderColor: colors.divider }}>
             {/* Logout */}
-            <div className="px-3 mt-2 pt-2 border-t" style={{ borderColor: colors.divider }}>
-              <button
-                onClick={logout}
-                className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm transition-colors"
-                style={{ color: colors.textSecondary }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16,17 21,12 16,7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </aside>
-        )}
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
+              style={{ color: colors.textSecondary }}
+              title={sidebarCollapsed ? 'Sign out' : undefined}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <LogOutIcon />
+              {!sidebarCollapsed && <span className="text-sm">Sign out</span>}
+            </button>
+          </div>
+        </aside>
 
         {/* ── MAIN CONTENT ── */}
         <main className="flex-1 overflow-hidden">

@@ -17,6 +17,7 @@ import {
   Mail,
   ChevronRight,
 } from 'lucide-react'
+import { CloseIcon } from '../../components/icons'
 
 const COMPANY_LOGO = 'https://res.cloudinary.com/dxb22swfg/image/upload/v1765747561/Asset_4_v5ksi6.png'
 const COMPANY_NAME = 'Sternmed Afrika'
@@ -625,7 +626,7 @@ The {{company_name}} Team`}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                 style={{ color: colors.textSecondary }}
               >
-                ✕
+                <CloseIcon size={16} />
               </button>
             </div>
 

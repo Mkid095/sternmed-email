@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
 import { ArrowLeft, Star, MailOpen, Reply } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
+import { PaperclipIcon } from '../../components/icons'
 import type { EmailInbound } from '../../types'
 
 export default function ThreadDetailView() {
@@ -146,7 +147,7 @@ export default function ThreadDetailView() {
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm"
                         style={{ backgroundColor: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.divider}` }}
                       >
-                        📎 {att.filename}
+                        <PaperclipIcon size={14} /> {att.filename}
                         <span style={{ color: colors.textTertiary }}>({(att.size / 1024).toFixed(1)} KB)</span>
                       </span>
                     ))}
