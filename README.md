@@ -102,3 +102,4 @@ Email platform (`mail.sternmedafrika.com`) handles:
 - Email user login
 - Inbox/Sent/Compose/Settings
 - Day-to-day email operations
+# Trigger Vercel rebuild
