@@ -315,6 +315,7 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
             height: isMinimized ? 'auto' : '600px',
             maxHeight: '90vh',
           }}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div
@@ -396,23 +397,42 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
                       border: `1px solid ${colors.border}`,
                       color: colors.textPrimary,
                     }}
+                    autoFocus
                   />
                 </div>
               </div>
 
               {/* CC/BCC */}
-              <div className="px-4 py-2 flex gap-4 text-sm" style={{ color: colors.textSecondary }}>
+              <div className="px-4 py-2 flex gap-3 text-sm">
                 <button
                   type="button"
                   onClick={() => setShowCc(!showCc)}
-                  className={`${showCc ? 'text-blue-600 font-medium' : ''} hover:text-blue-600`}
+                  className={`px-3 py-1 rounded-full transition-all ${
+                    showCc
+                      ? 'text-white'
+                      : ''
+                  }`}
+                  style={{
+                    backgroundColor: showCc ? colors.primary : colors.surfaceHover,
+                    color: showCc ? '#ffffff' : colors.textSecondary,
+                    border: `1px solid ${colors.border}`,
+                  }}
                 >
                   Cc
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowBcc(!showBcc)}
-                  className={`${showBcc ? 'text-blue-600 font-medium' : ''} hover:text-blue-600`}
+                  className={`px-3 py-1 rounded-full transition-all ${
+                    showBcc
+                      ? 'text-white'
+                      : ''
+                  }`}
+                  style={{
+                    backgroundColor: showBcc ? colors.primary : colors.surfaceHover,
+                    color: showBcc ? '#ffffff' : colors.textSecondary,
+                    border: `1px solid ${colors.border}`,
+                  }}
                 >
                   Bcc
                 </button>

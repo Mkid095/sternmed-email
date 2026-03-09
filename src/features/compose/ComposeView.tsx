@@ -368,20 +368,32 @@ export default function ComposeView() {
           </div>
 
           {/* CC/BCC Toggle */}
-          <div className="flex gap-4 ml-18">
+          <div className="flex gap-3 ml-18">
             <button
               type="button"
               onClick={() => setShowCc(!showCc)}
-              className="text-sm hover:underline"
-              style={{ color: showCc ? colors.primary : colors.textSecondary }}
+              className={`px-3 py-1 rounded-full text-sm transition-all ${
+                showCc ? 'text-white' : ''
+              }`}
+              style={{
+                backgroundColor: showCc ? colors.primary : colors.surfaceHover,
+                color: showCc ? '#ffffff' : colors.textSecondary,
+                border: `1px solid ${colors.border}`,
+              }}
             >
               Cc
             </button>
             <button
               type="button"
               onClick={() => setShowBcc(!showBcc)}
-              className="text-sm hover:underline"
-              style={{ color: showBcc ? colors.primary : colors.textSecondary }}
+              className={`px-3 py-1 rounded-full text-sm transition-all ${
+                showBcc ? 'text-white' : ''
+              }`}
+              style={{
+                backgroundColor: showBcc ? colors.primary : colors.surfaceHover,
+                color: showBcc ? '#ffffff' : colors.textSecondary,
+                border: `1px solid ${colors.border}`,
+              }}
             >
               Bcc
             </button>

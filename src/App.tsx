@@ -9,6 +9,7 @@ import SentView from './features/sent/SentView'
 import DraftsView from './features/drafts/DraftsView'
 import ComposeView from './features/compose/ComposeView'
 import SettingsView from './features/settings/SettingsView'
+import GlobalSearchView from './features/search/GlobalSearchView'
 import { useAuthStore } from './store/authStore'
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
         <Route path="drafts" element={<DraftsView />} />
         <Route path="compose" element={<ComposeView />} />
         <Route path="settings" element={<SettingsView />} />
+        <Route path="search" element={<GlobalSearchView />} />
       </Route>
 
       {/* Catch all - redirect based on auth */}

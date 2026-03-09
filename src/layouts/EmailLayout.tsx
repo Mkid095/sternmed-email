@@ -36,6 +36,7 @@ export default function EmailLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('')
 
   const currentPath = location.pathname
 
@@ -113,7 +114,14 @@ export default function EmailLayout() {
             <SearchIcon />
             <input
               type="text"
-              placeholder="Search emails..."
+              value={globalSearchQuery}
+              onChange={(e) => setGlobalSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && globalSearchQuery.trim()) {
+                  navigate(`/search?q=${encodeURIComponent(globalSearchQuery.trim())}`)
+                }
+              }}
+              placeholder="Search all emails..."
               className="flex-1 bg-transparent outline-none text-sm"
               style={{ color: colors.textPrimary }}
             />
@@ -192,8 +200,8 @@ export default function EmailLayout() {
                   onClick={() => navigate(path)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-left group"
                   style={{
-                    backgroundColor: isActive ? colors.selected : 'transparent',
-                    color: isActive ? colors.primary : colors.textSecondary,
+                    backgroundColor: isActive ? colors.primary : 'transparent',
+                    color: isActive ? '#ffffff' : colors.textSecondary,
                   }}
                   title={sidebarCollapsed ? label : undefined}
                 >
