@@ -19,7 +19,7 @@ export default function EmailLogin() {
 
     try {
       await login(email, password)
-      navigate('/inbox')
+      // No manual navigation - the route guard will redirect when user and emailAliasId are set
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Invalid email or password')
