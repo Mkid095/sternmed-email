@@ -41,7 +41,7 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate }: Comp
   const showError = useToastError()
 
   // Get user's email alias ID for draft updates
-  const emailAliasId = useAuthStore((state) => state.user?.emailAliasId)
+  const emailAliasId = useAuthStore((state) => state.emailAliasId)
 
   /**
    * Handle form submission (Send)

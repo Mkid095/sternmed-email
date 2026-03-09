@@ -129,7 +129,7 @@ export function useComposeForm(options: UseComposeFormOptions = {}) {
    * Update a single form field
    */
   const handleInputChange = useCallback(
-    (field: keyof ComposeForm, value: string[] | string) => {
+    (field: keyof ComposeForm, value: any) => {
       setForm((prev) => ({ ...prev, [field]: value }))
     },
     []

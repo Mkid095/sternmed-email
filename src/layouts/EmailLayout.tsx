@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useEmailModalStore } from '../features/inbox/useEmailModalStore'
 import { useComposeStore } from '../features/compose/useComposeStore'
@@ -50,7 +50,8 @@ export default function EmailLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showMore, setShowMore] = useState(false)
 
-  const currentPath = useNavigate().location.pathname
+  const location = useLocation()
+  const currentPath = location.pathname
 
   /**
    * Handle compose button click
