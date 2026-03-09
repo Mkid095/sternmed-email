@@ -4,6 +4,7 @@ import { EmailAuthGuard } from './guards/EmailAuthGuard'
 import EmailLogin from './features/auth/EmailLogin'
 import EmailLayout from './layouts/EmailLayout'
 import InboxView from './features/inbox/InboxView'
+import StarredView from './features/inbox/StarredView'
 import ThreadDetailView from './features/inbox/ThreadDetailView'
 import SentView from './features/sent/SentView'
 import DraftsView from './features/drafts/DraftsView'
@@ -53,6 +54,7 @@ function App() {
       >
         <Route index element={<Navigate to="/inbox" replace />} />
         <Route path="inbox" element={<InboxView />} />
+        <Route path="starred" element={<StarredView />} />
         <Route path="thread/:threadId" element={<ThreadDetailView />} />
         <Route path="sent" element={<SentView />} />
         <Route path="drafts" element={<DraftsView />} />
