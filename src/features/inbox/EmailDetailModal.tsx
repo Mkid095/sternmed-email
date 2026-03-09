@@ -46,10 +46,13 @@ export default function EmailDetailModal() {
     if (!result) return
 
     try {
+      // For now, archive means soft-delete (move to trash)
+      // In a full implementation, you might add an 'is_archived' boolean field
       await Promise.all(
-        thread.map((email) => emailInboundService.archiveEmail(email.id))
+        thread.map((email) => emailInboundService.softDelete(email.id))
       )
       handleClose()
+      window.dispatchEvent(new Event('email-deleted'))
     } catch (error) {
       console.error('Error archiving email:', error)
       alert('Failed to archive email')
@@ -68,9 +71,10 @@ export default function EmailDetailModal() {
 
     try {
       await Promise.all(
-        thread.map((email) => emailInboundService.deleteEmail(email.id))
+        thread.map((email) => emailInboundService.softDelete(email.id))
       )
       handleClose()
+      window.dispatchEvent(new Event('email-deleted'))
     } catch (error) {
       console.error('Error deleting email:', error)
       alert('Failed to delete email')
@@ -91,10 +95,12 @@ export default function EmailDetailModal() {
   const handleMarkUnread = useCallback(async () => {
     if (!thread) return
     try {
+      // Mark all emails in thread as unread
       await Promise.all(
-        thread.map((email) => emailInboundService.markAsRead(email.id, false))
+        thread.map((email) => emailInboundService.markAsUnread(email.id))
       )
       handleClose()
+      window.dispatchEvent(new Event('email-deleted')) // Reuse event to refresh
     } catch (error) {
       console.error('Error marking as unread:', error)
       alert('Failed to mark as unread')
@@ -226,8 +232,8 @@ export default function EmailDetailModal() {
                       &lt;{lastEmail?.senderEmail}&gt;
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm" style={{ color: colors.textTertiary }}>
-                    <span>to {lastEmail?.recipientEmail || 'me'}</span>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <span>to me</span>
                     <span>•</span>
                     <span>{lastEmail ? format(new Date(lastEmail.receivedAt), 'PPPp') : ''}</span>
                   </div>
