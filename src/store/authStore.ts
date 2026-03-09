@@ -29,56 +29,54 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { initialized } = get()
     if (initialized) return
 
-    return new Promise<void>((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        unsubscribe() // Unsubscribe after first call
+    // Set up persistent auth state listener
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Fetch user profile from Supabase
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('firebase_uid', firebaseUser.uid)
+          .single()
 
-        if (firebaseUser) {
-          // Fetch user profile from Supabase
-          const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('firebase_uid', firebaseUser.uid)
-            .single()
-
-          if (data && !error) {
-            set({
-              firebaseUser,
-              user: data as User,
-              emailAliasId: data.email_alias_id || undefined,
-              loading: false,
-              initialized: true,
-            })
-          } else {
-            set({
-              firebaseUser,
-              user: null,
-              emailAliasId: undefined,
-              loading: false,
-              initialized: true,
-            })
-          }
-        } else {
+        if (data && !error) {
           set({
+            firebaseUser,
+            user: data as User,
+            emailAliasId: data.email_alias_id || undefined,
+            loading: false,
+            initialized: true,
+          })
+        } else {
+          // Firebase user exists but no Supabase profile
+          set({
+            firebaseUser,
             user: null,
-            firebaseUser: null,
             emailAliasId: undefined,
             loading: false,
             initialized: true,
           })
         }
-        resolve()
-      })
+      } else {
+        // No user signed in
+        set({
+          user: null,
+          firebaseUser: null,
+          emailAliasId: undefined,
+          loading: false,
+          initialized: true,
+        })
+      }
     })
+
+    // Return cleanup function (optional)
+    return unsubscribe
   },
 
   login: async (email: string, password: string) => {
+    // signIn will trigger onAuthStateChanged listener which updates the store
     await signIn(email, password)
-    const { initialize } = get()
-
-    // Wait for user data to be loaded
-    await new Promise(resolve => setTimeout(resolve, 500))
-    await initialize()
+    // No need to call initialize - the persistent listener handles it
   },
 
   logout: async () => {
