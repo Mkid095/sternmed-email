@@ -1,38 +1,47 @@
-import { useState, useEffect, useCallback } from 'react'
+/**
+ * Inbox View Component
+ *
+ * Gmail-style email list with single column layout.
+ * Displays emails with checkbox, star, avatar, sender, subject+preview, date.
+ * Checkboxes appear on hover. Unread emails have bold text.
+ * Clicking a row opens the email in a modal.
+ *
+ * @module features/inbox/InboxView
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { useAuthStore } from '../../store/authStore'
-import { format } from 'date-fns'
-import { Star, RefreshCw, Search, MailOpen } from 'lucide-react'
+import { useEmailModalStore } from './useEmailModalStore'
 import { useTheme } from '../../contexts/ThemeContext'
-import { PaperclipIcon } from '../../components/icons'
 import type { EmailInbound } from '../../types'
-
-interface ThreadGroup {
-  threadId: string
-  emails: EmailInbound[]
-  lastEmail: EmailInbound
-  unreadCount: number
-}
 
 export default function InboxView() {
   const navigate = useNavigate()
   const { emailAliasId } = useAuthStore()
+  const { open } = useEmailModalStore()
   const { colors } = useTheme()
 
-  const [threads, setThreads] = useState<ThreadGroup[]>([])
+  const [emails, setEmails] = useState<EmailInbound[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const [totalCount, setTotalCount] = useState(0)
 
-  const fetchThreads = useCallback(async (pageNum: number, search: string = '', reset: boolean = true) => {
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const fetchEmails = useCallback(async (pageNum: number, search: string = '', reset: boolean = true) => {
     if (!emailAliasId) return
 
     if (pageNum === 1) setLoading(true)
@@ -52,28 +61,13 @@ export default function InboxView() {
         })
       }
 
-      // Group by thread (already sorted by received_at desc)
-      const threadMap = new Map<string, EmailInbound[]>()
-      result.data.forEach(email => {
-        const existing = threadMap.get(email.threadId) || []
-        threadMap.set(email.threadId, [...existing, email])
-      })
-
-      const threadGroups: ThreadGroup[] = Array.from(threadMap.values()).map(emails => ({
-        threadId: emails[0].threadId,
-        emails,
-        lastEmail: emails[0],
-        unreadCount: emails.filter(e => !e.isRead).length,
-      }))
-
       if (reset || pageNum === 1) {
-        setThreads(threadGroups)
+        setEmails(result.data)
       } else {
-        setThreads(prev => [...prev, ...threadGroups])
+        setEmails(prev => [...prev, ...result.data])
       }
 
       setHasMore(result.hasMore)
-      setTotalCount(result.count)
     } catch (error) {
       console.error('Error fetching emails:', error)
     } finally {
@@ -82,333 +76,245 @@ export default function InboxView() {
     }
   }, [emailAliasId])
 
+  // Initial fetch
   useEffect(() => {
     setPage(1)
-    fetchThreads(1, debouncedSearch, true)
-  }, [emailAliasId, debouncedSearch, fetchThreads])
+    fetchEmails(1, debouncedSearch, true)
+  }, [emailAliasId, debouncedSearch, fetchEmails])
 
+  // Listen for email-deleted event
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    const handleEmailDeleted = () => {
+      fetchEmails(1, debouncedSearch, true)
+    }
+    window.addEventListener('email-deleted', handleEmailDeleted)
+    return () => window.removeEventListener('email-deleted', handleEmailDeleted)
+  }, [fetchEmails, debouncedSearch])
 
   const handleLoadMore = () => {
     const nextPage = page + 1
     setPage(nextPage)
-    fetchThreads(nextPage, debouncedSearch, false)
+    fetchEmails(nextPage, debouncedSearch, false)
   }
 
-  const selectThread = async (thread: ThreadGroup) => {
-    setSelectedThreadId(thread.threadId)
-    // Mark all as read
-    thread.emails.forEach(async email => {
-      if (!email.isRead) {
+  const handleRowClick = async (email: EmailInbound) => {
+    // Toggle selection if clicked on checkbox area (handled separately)
+    // Open email modal
+    if (!email.isRead) {
+      try {
         await emailInboundService.markAsRead(email.id)
+        setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isRead: true } : e))
+      } catch (error) {
+        console.error('Failed to mark as read:', error)
       }
-    })
-    setThreads(prev => prev.map(t =>
-      t.threadId === thread.threadId
-        ? { ...t, emails: t.emails.map(e => ({ ...e, isRead: true })), unreadCount: 0 }
-        : t
-    ))
+    }
+    open(email)
   }
 
-  const toggleStar = async (e?: React.MouseEvent, emailId?: string) => {
-    if (e) e.stopPropagation()
-    if (!emailId) return
+  const handleToggleSelect = (e: React.MouseEvent, emailId: string) => {
+    e.stopPropagation()
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(emailId)) {
+        next.delete(emailId)
+      } else {
+        next.add(emailId)
+      }
+      return next
+    })
+  }
+
+  const handleToggleStar = async (e: React.MouseEvent, email: EmailInbound) => {
+    e.stopPropagation()
     try {
-      await emailInboundService.toggleStarred(emailId)
-      fetchThreads(page, debouncedSearch, false)
+      const newStarred = await emailInboundService.toggleStarred(email.id)
+      setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isStarred: newStarred } : e))
     } catch (error) {
-      console.error('Error toggling star:', error)
+      console.error('Failed to toggle star:', error)
     }
   }
 
-  const selectedThread = threads.find(t => t.threadId === selectedThreadId)
+  // Helper functions
+  const getInitials = (name: string) => {
+    if (!name) return '?'
+    return name.charAt(0).toUpperCase()
+  }
+
+  const getAvatarColor = (name: string) => {
+    const colors = ['#1a73e8', '#34a853', '#ea4335', '#fbbc04', '#9c27b0', '#ff5722', '#00bcd4', '#795548', '#607d8b', '#e91e63']
+    let hash = 0
+    for (let i = 0; i < name.length; i++) {
+      hash = (hash * 31 + name.charCodeAt(i)) % colors.length
+    }
+    return colors[Math.abs(hash)]
+  }
+
+  const formatPreview = (email: EmailInbound) => {
+    const text = email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, '') || ''
+    return text.slice(0, 80) + (text.length > 80 ? '...' : '')
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    if (days === 0) return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    if (days === 1) return 'Yesterday'
+    if (days < 7) return date.toLocaleDateString('en-GB', { weekday: 'short' })
+    return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
+  }
+
+  // Star icon component
+  const StarIcon = ({ filled }: { filled: boolean }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? '#f4b400' : 'none'} stroke={filled ? '#f4b400' : '#9aa0a6'} strokeWidth="2">
+      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
+    </svg>
+  )
 
   return (
-    <div className="flex h-full">
-      {/* Email List */}
-      <div
-        className="flex flex-col border-r"
-        style={{
-          width: '400px',
-          backgroundColor: colors.surface,
-          borderColor: colors.divider,
-        }}
-      >
-        {/* Header */}
-        <div className="p-4 border-b" style={{ borderColor: colors.divider }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-lg" style={{ color: colors.textPrimary }}>
-              Inbox
-              {totalCount > 0 && (
-                <span className="ml-2 text-sm font-normal" style={{ color: colors.textSecondary }}>
-                  {totalCount}
-                </span>
-              )}
-            </h2>
-            <button
-              onClick={() => fetchThreads(page, debouncedSearch, false)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-              style={{ color: colors.textSecondary }}
-            >
-              <RefreshCw size={18} />
-            </button>
+    <div className="min-h-full bg-white">
+      <div className="divide-y divide-[#f1f3f4]">
+        {emails.length === 0 && !loading ? (
+          <div className="p-8 text-center text-gray-500">
+            <p className="text-sm">No emails in inbox</p>
           </div>
-
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={18} style={{ color: colors.textTertiary }} />
-            <input
-              type="text"
-              placeholder="Search emails..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-full text-sm outline-none"
-              style={{
-                backgroundColor: colors.searchBackground,
-                color: colors.textPrimary,
-                border: `1px solid ${colors.border}`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: colors.primary }} />
-            </div>
-          ) : threads.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64" style={{ color: colors.textSecondary }}>
-              <MailOpen size={48} className="mb-4 opacity-50" />
-              <p>{debouncedSearch ? 'No emails match your search' : 'No emails yet'}</p>
-            </div>
-          ) : (
-            <>
-              <div className="divide-y" style={{ borderColor: colors.divider }}>
-                {threads.map((thread) => (
-                  <div
-                    key={thread.threadId}
-                    onClick={() => selectThread(thread)}
-                    className={`p-4 cursor-pointer transition-colors ${
-                      selectedThreadId === thread.threadId
-                        ? 'bg-blue-50 dark:bg-blue-900/20'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-900/30'
-                    }`}
-                    style={{
-                      backgroundColor: selectedThreadId === thread.threadId ? colors.selected : undefined,
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <button
-                        onClick={(e) => toggleStar(e, thread.lastEmail.id)}
-                        className="flex-shrink-0"
-                      >
-                        <Star
-                          size={18}
-                          className={thread.lastEmail.isStarred ? 'fill-yellow-400 text-yellow-400' : ''}
-                          style={{ color: thread.lastEmail.isStarred ? undefined : colors.textTertiary }}
-                        />
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <span
-                            className="font-medium truncate"
-                            style={{
-                              color: thread.unreadCount > 0 ? colors.textPrimary : colors.textSecondary,
-                              fontWeight: thread.unreadCount > 0 ? 700 : 400,
-                            }}
-                          >
-                            {thread.lastEmail.senderName || thread.lastEmail.senderEmail}
-                          </span>
-                          <span className="text-xs flex-shrink-0 ml-2" style={{ color: colors.textTertiary }}>
-                            {format(new Date(thread.lastEmail.receivedAt), 'MMM d')}
-                          </span>
-                        </div>
-                        <p
-                          className="text-sm truncate mb-1"
-                          style={{
-                            color: thread.unreadCount > 0 ? colors.textPrimary : colors.textSecondary,
-                            fontWeight: thread.unreadCount > 0 ? 500 : 400,
-                          }}
-                        >
-                          {thread.lastEmail.subject || '(No subject)'}
-                        </p>
-                        <p className="text-xs truncate" style={{ color: colors.textTertiary }}>
-                          {thread.lastEmail.bodyText?.substring(0, 50) || ''}...
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Unread indicator */}
-                    {thread.unreadCount > 0 && (
-                      <div className="mt-2 ml-8">
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: colors.primary + '20', color: colors.primary }}
-                        >
-                          {thread.unreadCount} new
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {hasMore && (
-                <div className="p-4 border-t" style={{ borderColor: colors.divider }}>
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    className="w-full py-2 text-sm font-medium rounded-lg transition-colors"
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: loadingMore ? colors.surfaceHover : 'transparent',
-                    }}
-                  >
-                    {loadingMore ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2" style={{ borderColor: colors.primary }} />
-                        Loading...
-                      </span>
-                    ) : (
-                      'Load more'
-                    )}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Thread Detail */}
-      <div
-        className="flex-1 flex flex-col bg-white overflow-hidden"
-        style={{ backgroundColor: colors.surface }}
-      >
-        {selectedThread ? (
-          <>
-            {/* Header */}
-            <div className="p-6 border-b" style={{ borderColor: colors.divider }}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1 min-w-0">
-                  <h1
-                    className="text-xl font-bold break-words"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    {selectedThread.lastEmail.subject || '(No subject)'}
-                  </h1>
-                  <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                    {selectedThread.emails.length} message{selectedThread.emails.length > 1 ? 's' : ''} in this conversation
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigate('/compose')}
-                  className="px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                  style={{ backgroundColor: colors.primary, color: 'white' }}
-                >
-                  Reply
-                </button>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {selectedThread.emails.map((email, idx) => (
-                <div
-                  key={email.id}
-                  className={`${idx > 0 ? 'pt-6 border-t' : ''}`}
-                  style={{ borderColor: colors.divider }}
-                >
-                  <div className="flex items-center gap-4 mb-4">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium"
-                      style={{ backgroundColor: colors.primary }}
-                    >
-                      {(email.senderName || email.senderEmail)?.[0]?.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold" style={{ color: colors.textPrimary }}>
-                        {email.senderName || email.senderEmail}
-                      </p>
-                      <p className="text-sm" style={{ color: colors.textSecondary }}>
-                        {email.senderEmail}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm" style={{ color: colors.textTertiary }}>
-                        {format(new Date(email.receivedAt), 'PPPp')}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Attachments */}
-                  {email.attachments && email.attachments.length > 0 && (
-                    <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.searchBackground }}>
-                      <p className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Attachments:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {email.attachments.map((att, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm"
-                            style={{ backgroundColor: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.divider}` }}
-                          >
-                            <PaperclipIcon size={14} /> {att.filename}
-                            <span style={{ color: colors.textTertiary }}>({(att.size / 1024).toFixed(1)} KB)</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Body */}
-                  <div className="prose max-w-none" style={{ color: colors.textPrimary }}>
-                    {email.bodyHtml ? (
-                      <div dangerouslySetInnerHTML={{ __html: email.bodyHtml }} />
-                    ) : (
-                      <div className="whitespace-pre-wrap">{email.bodyText}</div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderColor: colors.divider }}>
-                    <button
-                      onClick={() => toggleStar(undefined, email.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
-                        email.isStarred
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-gray-100 dark:bg-gray-700'
-                      }`}
-                      style={{
-                        backgroundColor: email.isStarred ? undefined : colors.surfaceHover,
-                        color: email.isStarred ? undefined : colors.textSecondary,
-                      }}
-                    >
-                      <Star size={14} fill={email.isStarred ? 'currentColor' : 'none'} />
-                      {email.isStarred ? 'Starred' : 'Star'}
-                    </button>
-                    <button
-                      onClick={() => navigate(`/compose?reply=${email.id}`)}
-                      className="px-3 py-1.5 rounded-full text-sm transition-colors"
-                      style={{ backgroundColor: colors.accent, color: colors.primary }}
-                    >
-                      Reply
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
         ) : (
-          <div className="flex-1 flex items-center justify-center" style={{ color: colors.textSecondary }}>
-            <div className="text-center">
-              <MailOpen size={64} className="mx-auto mb-4 opacity-30" />
-              <p className="text-lg">Select an email to read</p>
-            </div>
+          emails.map((email) => {
+            const isUnread = !email.isRead
+            const senderName = email.senderName || email.senderEmail.split('@')[0] || 'Unknown'
+            const initials = getInitials(senderName)
+            const avatarColor = getAvatarColor(senderName)
+            const preview = formatPreview(email)
+            const dateFormatted = formatDate(email.receivedAt)
+            const isHovered = hoveredRow === email.id
+            const isSelected = selectedIds.has(email.id)
+            const isStarred = email.isStarred
+
+            return (
+              <div
+                key={email.id}
+                onMouseEnter={() => setHoveredRow(email.id)}
+                onMouseLeave={() => setHoveredRow(null)}
+                onClick={() => handleRowClick(email)}
+                className={`
+                  flex items-center gap-x-3 px-4 h-[56px] cursor-pointer
+                  transition-all duration-150
+                  ${isUnread ? 'bg-[#f8f9fa]' : 'bg-white'}
+                  hover:bg-[#f2f6fc] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)] hover:z-10 relative
+                `}
+                role="button"
+                aria-label={`Email from ${senderName}: ${email.subject || '(No subject)'}`}
+              >
+                {/* Checkbox - visible on hover */}
+                <div
+                  className={`
+                    flex-shrink-0 transition-opacity duration-150
+                    ${isHovered || isSelected ? 'opacity-100' : 'opacity-0'}
+                  `}
+                  onClick={(e) => handleToggleSelect(e, email.id)}
+                >
+                  <div
+                    className={`
+                      w-4 h-4 border-2 rounded cursor-pointer
+                      flex items-center justify-center
+                      transition-colors
+                      ${isSelected
+                        ? 'bg-[#1a73e8] border-[#1a73e8]'
+                        : 'border-[#9aa0a6] bg-transparent hover:border-[#1a73e8]'
+                      }
+                    `}
+                  >
+                    {isSelected && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                        <path d="M1 6l3.5 3.5L11 2" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    )}
+                  </div>
+                </div>
+
+                {/* Star - always visible if starred, on hover otherwise */}
+                <div
+                  className={`
+                    flex-shrink-0 transition-opacity duration-150 cursor-pointer
+                    ${isStarred ? 'opacity-100' : (isHovered ? 'opacity-100' : 'opacity-0')}
+                  `}
+                  onClick={(e) => handleToggleStar(e, email)}
+                >
+                  <StarIcon filled={isStarred} />
+                </div>
+
+                {/* Avatar */}
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0"
+                  style={{ backgroundColor: avatarColor }}
+                  title={senderName}
+                >
+                  {initials}
+                </div>
+
+                {/* Sender name */}
+                <div
+                  className="w-40 md:w-52 flex-shrink-0 truncate"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: isUnread ? 700 : 400,
+                    color: '#202124',
+                  }}
+                >
+                  {senderName}
+                </div>
+
+                {/* Subject + Preview */}
+                <div className="flex-1 min-w-0 flex items-center gap-x-2">
+                  <span
+                    className="truncate"
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: isUnread ? 700 : 400,
+                      color: '#202124',
+                    }}
+                  >
+                    {email.subject || '(No subject)'}
+                  </span>
+                  <span
+                    className="truncate"
+                    style={{ fontSize: '14px', color: '#5f6368' }}
+                  >
+                    — {preview}
+                  </span>
+                </div>
+
+                {/* Date */}
+                <div
+                  className="w-20 md:w-24 flex-shrink-0 text-right"
+                  style={{
+                    fontSize: '12px',
+                    color: '#5f6368',
+                    fontWeight: isUnread ? 700 : 400,
+                  }}
+                >
+                  {dateFormatted}
+                </div>
+              </div>
+            )
+          })
+        )}
+
+        {loadingMore && (
+          <div className="p-4 text-center text-sm text-gray-500">
+            Loading...
+          </div>
+        )}
+
+        {!loading && hasMore && emails.length > 0 && (
+          <div className="p-3 border-t border-[#f1f3f4]">
+            <button
+              onClick={handleLoadMore}
+              className="w-full py-2 text-sm text-[#1a73e8] hover:bg-[#f2f6fc] rounded-md transition-colors"
+            >
+              Load More
+            </button>
           </div>
         )}
       </div>

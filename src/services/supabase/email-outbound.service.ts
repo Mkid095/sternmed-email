@@ -591,4 +591,39 @@ export const emailOutboundService = {
 
     return transformOutboundRow(draftRecord);
   },
+
+  /**
+   * Update an existing draft
+   *
+   * @param draftId - The draft ID to update
+   * @param aliasId - The user's alias ID (for ownership verification)
+   * @param draft - Updated draft data
+   * @returns The updated outbound email record
+   */
+  async updateDraft(draftId: string, aliasId: string, draft: Partial<Omit<SendOutboundInput, 'aliasId'>>): Promise<EmailOutbound> {
+    // Build update payload
+    const updateData: any = {
+      recipient_email: draft.recipientEmail,
+      cc: (draft.cc ?? []) as unknown[],
+      bcc: (draft.bcc ?? []) as unknown[],
+      subject: draft.subject,
+      body_html: draft.bodyHtml ?? null,
+      body_text: draft.bodyText ?? null,
+      template_id: draft.templateId ?? null,
+    };
+
+    const { data, error } = await supabase
+      .from('email_outbound')
+      .update(updateData)
+      .eq('id', draftId)
+      .eq('alias_id', aliasId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update draft: ${error.message}`);
+    }
+
+    return transformOutboundRow(data);
+  },
 };
