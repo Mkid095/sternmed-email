@@ -167,14 +167,14 @@ export default function InboxView() {
 
   // Star icon component
   const StarIcon = ({ filled }: { filled: boolean }) => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? '#f4b400' : 'none'} stroke={filled ? '#f4b400' : '#9aa0a6'} strokeWidth="2">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? colors.accent : 'none'} stroke={filled ? colors.accent : colors.textTertiary} strokeWidth="2">
       <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
     </svg>
   )
 
   return (
-    <div className="min-h-full bg-white">
-      <div className="divide-y divide-[#f1f3f4]">
+    <div className="min-h-full" style={{ backgroundColor: colors.surface }}>
+      <div className="divide-y" style={{ borderColor: colors.divider }}>
         {emails.length === 0 && !loading ? (
           <div className="p-8 text-center text-gray-500">
             <p className="text-sm">No emails in inbox</p>
@@ -200,9 +200,12 @@ export default function InboxView() {
                 className={`
                   flex items-center gap-x-3 px-4 h-[56px] cursor-pointer
                   transition-all duration-150
-                  ${isUnread ? 'bg-[#f8f9fa]' : 'bg-white'}
-                  hover:bg-[#f2f6fc] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)] hover:z-10 relative
+                  ${isUnread ? 'bg-[var(--theme-selected)]' : 'bg-[var(--theme-surface)]'}
+                  hover:bg-[var(--theme-surface-hover)] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)] hover:z-10 relative
                 `}
+                style={{
+                  backgroundColor: isUnread ? colors.selected : colors.surface,
+                }}
                 role="button"
                 aria-label={`Email from ${senderName}: ${email.subject || '(No subject)'}`}
               >
@@ -220,10 +223,14 @@ export default function InboxView() {
                       flex items-center justify-center
                       transition-colors
                       ${isSelected
-                        ? 'bg-[#1a73e8] border-[#1a73e8]'
-                        : 'border-[#9aa0a6] bg-transparent hover:border-[#1a73e8]'
+                        ? `bg-[${colors.primary}] border-[${colors.primary}]`
+                        : `border-[${colors.textTertiary}] bg-transparent hover:border-[${colors.primary}]`
                       }
                     `}
+                    style={{
+                      borderColor: isSelected ? colors.primary : (isHovered ? colors.primary : colors.textTertiary),
+                      backgroundColor: isSelected ? colors.primary : 'transparent',
+                    }}
                   >
                     {isSelected && (
                       <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -259,7 +266,7 @@ export default function InboxView() {
                   style={{
                     fontSize: '14px',
                     fontWeight: isUnread ? 700 : 400,
-                    color: '#202124',
+                    color: colors.textPrimary,
                   }}
                 >
                   {senderName}
@@ -272,14 +279,14 @@ export default function InboxView() {
                     style={{
                       fontSize: '14px',
                       fontWeight: isUnread ? 700 : 400,
-                      color: '#202124',
+                      color: colors.textPrimary,
                     }}
                   >
                     {email.subject || '(No subject)'}
                   </span>
                   <span
                     className="truncate"
-                    style={{ fontSize: '14px', color: '#5f6368' }}
+                    style={{ fontSize: '14px', color: colors.textSecondary }}
                   >
                     — {preview}
                   </span>
@@ -290,7 +297,7 @@ export default function InboxView() {
                   className="w-20 md:w-24 flex-shrink-0 text-right"
                   style={{
                     fontSize: '12px',
-                    color: '#5f6368',
+                    color: colors.textSecondary,
                     fontWeight: isUnread ? 700 : 400,
                   }}
                 >
@@ -308,10 +315,16 @@ export default function InboxView() {
         )}
 
         {!loading && hasMore && emails.length > 0 && (
-          <div className="p-3 border-t border-[#f1f3f4]">
+          <div className="p-3 border-t" style={{ borderColor: colors.divider }}>
             <button
               onClick={handleLoadMore}
-              className="w-full py-2 text-sm text-[#1a73e8] hover:bg-[#f2f6fc] rounded-md transition-colors"
+              className="w-full py-2 text-sm transition-colors rounded-md"
+              style={{
+                color: colors.primary,
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               Load More
             </button>

@@ -129,14 +129,14 @@ export default function StarredView() {
   }
 
   const StarIcon = ({ filled }: { filled: boolean }) => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? '#f4b400' : 'none'} stroke={filled ? '#f4b400' : '#9aa0a6'} strokeWidth="2">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? colors.accent : 'none'} stroke={filled ? colors.accent : colors.textTertiary} strokeWidth="2">
       <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
     </svg>
   )
 
   return (
-    <div className="min-h-full bg-white">
-      <div className="divide-y divide-[#f1f3f4]">
+    <div className="min-h-full" style={{ backgroundColor: colors.surface }}>
+      <div className="divide-y" style={{ borderColor: colors.divider }}>
         {emails.length === 0 && !loading ? (
           <div className="p-8 text-center text-gray-500">
             <p className="text-sm">No starred emails</p>
@@ -155,15 +155,21 @@ export default function StarredView() {
             return (
               <div
                 key={email.id}
-                onMouseEnter={() => setHoveredRow(email.id)}
-                onMouseLeave={() => setHoveredRow(null)}
+                className="flex items-center gap-x-3 px-4 h-[56px] cursor-pointer transition-all duration-150 relative"
+                style={{
+                  backgroundColor: isUnread ? colors.selected : colors.surface,
+                }}
+                onMouseEnter={(e) => {
+                  setHoveredRow(email.id)
+                  e.currentTarget.style.backgroundColor = colors.surfaceHover
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  setHoveredRow(null)
+                  e.currentTarget.style.backgroundColor = isUnread ? colors.selected : colors.surface
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
                 onClick={() => handleRowClick(email)}
-                className={`
-                  flex items-center gap-x-3 px-4 h-[56px] cursor-pointer
-                  transition-all duration-150
-                  ${isUnread ? 'bg-[#f8f9fa]' : 'bg-white'}
-                  hover:bg-[#f2f6fc] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)] hover:z-10 relative
-                `}
                 role="button"
                 aria-label={`Email from ${senderName}: ${email.subject || '(No subject)'}`}
               >
@@ -175,7 +181,14 @@ export default function StarredView() {
                   `}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="w-4 h-4 border-2 border-[#9aa0a6] rounded bg-transparent hover:border-[#1a73e8] transition-colors" />
+                  <div
+                    className="w-4 h-4 border-2 rounded bg-transparent transition-colors"
+                    style={{
+                      borderColor: colors.textTertiary,
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.primary}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.textTertiary}
+                  />
                 </div>
 
                 {/* Star - always visible if starred, on hover otherwise */}
@@ -204,7 +217,7 @@ export default function StarredView() {
                   style={{
                     fontSize: '14px',
                     fontWeight: isUnread ? 700 : 400,
-                    color: '#202124',
+                    color: colors.textPrimary,
                   }}
                 >
                   {senderName}
@@ -217,14 +230,14 @@ export default function StarredView() {
                     style={{
                       fontSize: '14px',
                       fontWeight: isUnread ? 700 : 400,
-                      color: '#202124',
+                      color: colors.textPrimary,
                     }}
                   >
                     {email.subject || '(No subject)'}
                   </span>
                   <span
                     className="truncate"
-                    style={{ fontSize: '14px', color: '#5f6368' }}
+                    style={{ fontSize: '14px', color: colors.textSecondary }}
                   >
                     — {preview}
                   </span>
@@ -235,7 +248,7 @@ export default function StarredView() {
                   className="w-20 md:w-24 flex-shrink-0 text-right"
                   style={{
                     fontSize: '12px',
-                    color: '#5f6368',
+                    color: colors.textSecondary,
                     fontWeight: isUnread ? 700 : 400,
                   }}
                 >
@@ -256,7 +269,13 @@ export default function StarredView() {
           <div className="p-3 border-t border-[#f1f3f4]">
             <button
               onClick={handleLoadMore}
-              className="w-full py-2 text-sm text-[#1a73e8] hover:bg-[#f2f6fc] rounded-md transition-colors"
+              className="w-full py-2 text-sm rounded-md transition-colors"
+              style={{
+                color: colors.primary,
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               Load More
             </button>

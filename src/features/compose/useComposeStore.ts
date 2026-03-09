@@ -61,6 +61,8 @@ interface ComposeStore {
   restoreCompose: (id: string) => void
   /** Bring a compose window to front (increase z-index) */
   bringToFront: (id: string) => void
+  /** Update window position */
+  updateWindowPosition: (id: string, x: number, y: number) => void
 }
 
 const COMPOSE_WIDTH = 600
@@ -109,4 +111,8 @@ export const useComposeStore = create<ComposeStore>((set, get) => ({
       highestZIndex: maxZ + 1,
     }
   }),
+
+  updateWindowPosition: (id, x, y) => set((state) => ({
+    windows: state.windows.map((w) => (w.id === id ? { ...w, position: { x, y } } : w)),
+  })),
 }))

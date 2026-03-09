@@ -88,6 +88,11 @@ export default function SentView() {
     fetchEmails(nextPage, debouncedSearch, false)
   }
 
+  const handleRowClick = (email: EmailOutbound) => {
+    // TODO: Implement sent email detail view
+    console.log('Sent email clicked:', email)
+  }
+
   const getInitials = (email: string) => {
     if (!email) return '?'
     const parts = email.split('@')[0]
@@ -137,8 +142,8 @@ export default function SentView() {
   }
 
   return (
-    <div className="min-h-full bg-white">
-      <div className="divide-y divide-[#f1f3f4]">
+    <div className="min-h-full" style={{ backgroundColor: colors.surface }}>
+      <div className="divide-y" style={{ borderColor: colors.divider }}>
         {emails.length === 0 && !loading ? (
           <div className="p-8 text-center text-gray-500">
             <p className="text-sm">No sent emails</p>
@@ -155,13 +160,21 @@ export default function SentView() {
             return (
               <div
                 key={email.id}
-                onMouseEnter={() => setHoveredRow(email.id)}
-                onMouseLeave={() => setHoveredRow(null)}
-                className={`
-                  flex items-center gap-x-3 px-4 h-[56px] cursor-pointer
-                  transition-all duration-150 bg-white
-                  hover:bg-[#f2f6fc] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)] hover:z-10 relative
-                `}
+                className="flex items-center gap-x-3 px-4 h-[56px] cursor-pointer transition-all duration-150 relative"
+                style={{
+                  backgroundColor: colors.surface,
+                }}
+                onMouseEnter={(e) => {
+                  setHoveredRow(email.id)
+                  e.currentTarget.style.backgroundColor = colors.surfaceHover
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  setHoveredRow(null)
+                  e.currentTarget.style.backgroundColor = colors.surface
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+                onClick={() => handleRowClick(email)}
                 role="button"
                 aria-label={`Sent to ${recipient}: ${email.subject || '(No subject)'}`}
               >
@@ -172,7 +185,14 @@ export default function SentView() {
                     ${isHovered ? 'opacity-100' : 'opacity-0'}
                   `}
                 >
-                  <div className="w-4 h-4 border-2 border-[#9aa0a6] rounded bg-transparent hover:border-[#1a73e8] transition-colors" />
+                  <div
+                    className="w-4 h-4 border-2 rounded bg-transparent transition-colors"
+                    style={{
+                      borderColor: colors.textTertiary,
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.primary}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.textTertiary}
+                  />
                 </div>
 
                 {/* Status indicator */}
@@ -208,14 +228,14 @@ export default function SentView() {
                     style={{
                       fontSize: '14px',
                       fontWeight: 400,
-                      color: '#202124',
+                      color: colors.textPrimary,
                     }}
                   >
                     {email.subject || '(No subject)'}
                   </span>
                   <span
                     className="truncate"
-                    style={{ fontSize: '14px', color: '#5f6368' }}
+                    style={{ fontSize: '14px', color: colors.textSecondary }}
                   >
                     — {preview}
                   </span>
@@ -226,7 +246,7 @@ export default function SentView() {
                   className="w-20 md:w-24 flex-shrink-0 text-right"
                   style={{
                     fontSize: '12px',
-                    color: '#5f6368',
+                    color: colors.textSecondary,
                     fontWeight: 400,
                   }}
                 >
@@ -247,7 +267,13 @@ export default function SentView() {
           <div className="p-3 border-t border-[#f1f3f4]">
             <button
               onClick={handleLoadMore}
-              className="w-full py-2 text-sm text-[#1a73e8] hover:bg-[#f2f6fc] rounded-md transition-colors"
+              className="w-full py-2 text-sm rounded-md transition-colors"
+              style={{
+                color: colors.primary,
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               Load More
             </button>

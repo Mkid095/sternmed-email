@@ -124,8 +124,8 @@ export default function DraftsView() {
   }
 
   return (
-    <div className="min-h-full bg-white">
-      <div className="divide-y divide-[#f1f3f4]">
+    <div className="min-h-full" style={{ backgroundColor: colors.surface }}>
+      <div className="divide-y" style={{ borderColor: colors.divider }}>
         {drafts.length === 0 && !loading ? (
           <div className="p-8 text-center text-gray-500">
             <p className="text-sm">No drafts</p>
@@ -142,14 +142,21 @@ export default function DraftsView() {
             return (
               <div
                 key={draft.id}
-                onMouseEnter={() => setHoveredRow(draft.id)}
-                onMouseLeave={() => setHoveredRow(null)}
                 onClick={() => handleRowClick(draft)}
-                className={`
-                  flex items-center gap-x-3 px-4 h-[56px] cursor-pointer
-                  transition-all duration-150 bg-white
-                  hover:bg-[#f2f6fc] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)] hover:z-10 relative
-                `}
+                className="flex items-center gap-x-3 px-4 h-[56px] cursor-pointer transition-all duration-150 relative"
+                style={{
+                  backgroundColor: colors.surface,
+                }}
+                onMouseEnter={(e) => {
+                  setHoveredRow(draft.id)
+                  e.currentTarget.style.backgroundColor = colors.surfaceHover
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  setHoveredRow(null)
+                  e.currentTarget.style.backgroundColor = colors.surface
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
                 role="button"
                 aria-label={`Draft to ${recipient}: ${draft.subject || '(No subject)'}`}
               >
@@ -161,12 +168,19 @@ export default function DraftsView() {
                   `}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="w-4 h-4 border-2 border-[#9aa0a6] rounded bg-transparent hover:border-[#1a73e8] transition-colors" />
+                  <div
+                    className="w-4 h-4 border-2 rounded bg-transparent transition-colors"
+                    style={{
+                      borderColor: colors.textTertiary,
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.primary}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.textTertiary}
+                  />
                 </div>
 
                 {/* Star placeholder (disabled for drafts) */}
                 <div className="flex-shrink-0 opacity-50">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={colors.textTertiary} strokeWidth="2">
                     <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
                   </svg>
                 </div>
@@ -186,7 +200,7 @@ export default function DraftsView() {
                   style={{
                     fontSize: '14px',
                     fontWeight: 400,
-                    color: '#202124',
+                    color: colors.textPrimary,
                   }}
                 >
                   {recipient}
@@ -199,14 +213,14 @@ export default function DraftsView() {
                     style={{
                       fontSize: '14px',
                       fontWeight: 400,
-                      color: '#202124',
+                      color: colors.textPrimary,
                     }}
                   >
                     {draft.subject || '(No subject)'}
                   </span>
                   <span
                     className="truncate"
-                    style={{ fontSize: '14px', color: '#5f6368' }}
+                    style={{ fontSize: '14px', color: colors.textSecondary }}
                   >
                     — {preview}
                   </span>
@@ -217,7 +231,7 @@ export default function DraftsView() {
                   className="w-20 md:w-24 flex-shrink-0 text-right"
                   style={{
                     fontSize: '12px',
-                    color: '#5f6368',
+                    color: colors.textSecondary,
                     fontWeight: 400,
                   }}
                 >
@@ -238,7 +252,13 @@ export default function DraftsView() {
           <div className="p-3 border-t border-[#f1f3f4]">
             <button
               onClick={handleLoadMore}
-              className="w-full py-2 text-sm text-[#1a73e8] hover:bg-[#f2f6fc] rounded-md transition-colors"
+              className="w-full py-2 text-sm rounded-md transition-colors"
+              style={{
+                color: colors.primary,
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               Load More
             </button>

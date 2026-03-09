@@ -8,37 +8,38 @@ import EmailDetailModal from '../features/inbox/EmailDetailModal'
 import { ComposeWindowManager } from '../features/compose/ComposeWindowManager'
 import type { EmailInbound } from '../types'
 
-const navItems = [
-  { label: 'Inbox', icon: 'InboxIcon', path: '/inbox' },
-  { label: 'Starred', icon: 'StarIcon', path: '/starred' },
-  { label: 'Sent', icon: 'SentIcon', path: '/sent' },
-  { label: 'Drafts', icon: 'DraftsIcon', path: '/drafts' },
-]
-
-// Simple icon components (you can replace with actual icons from your icon set)
-const InboxIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+// Icon components for navigation
+const InboxIcon = ({ filled }: { filled?: boolean }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
     <path d="M19 3H4.99c-1.1 0-1.99.9-1.99 2L3 19c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 12h-4c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v8c0 1.1-.9 2-2 2zm0-6h-4c-1.1 0-2-.9-2-2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2z"/>
   </svg>
 )
 
-const StarIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+const StarIcon = ({ filled }: { filled?: boolean }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
   </svg>
 )
 
 const SentIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
   </svg>
 )
 
 const DraftsIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM16 14H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+    <path d="M3 21h18" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 )
+
+const navItems = [
+  { label: 'Inbox', icon: InboxIcon, path: '/inbox' },
+  { label: 'Starred', icon: StarIcon, path: '/starred' },
+  { label: 'Sent', icon: SentIcon, path: '/sent' },
+  { label: 'Drafts', icon: DraftsIcon, path: '/drafts' },
+]
 
 export default function EmailLayout() {
   const navigate = useNavigate()
@@ -192,15 +193,14 @@ export default function EmailLayout() {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1">
-            {navItems.map(({ label, icon: IconName, path }) => {
+            {navItems.map(({ label, icon: Icon, path }) => {
               const isActive = currentPath === path || (label === 'Inbox' && currentPath === '/')
-              const Icon = InboxIcon // TODO: map to actual icon components
 
               return (
                 <button
                   key={label}
                   onClick={() => navigate(path)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-left"
                   style={{
                     backgroundColor: isActive ? colors.primary : 'transparent',
                     color: isActive ? '#ffffff' : colors.textSecondary,
@@ -208,7 +208,7 @@ export default function EmailLayout() {
                   title={sidebarCollapsed ? label : undefined}
                 >
                   <span className="flex-shrink-0">
-                    <Icon />
+                    <Icon filled={isActive} />
                   </span>
                   {!sidebarCollapsed && (
                     <span className="flex-1 text-sm font-medium truncate">
@@ -244,7 +244,24 @@ export default function EmailLayout() {
       </div>
 
       {/* ── GLOBAL MODALS ── */}
-      <EmailDetailModal />
+      <EmailDetailModal
+        onReply={(email) => {
+          openCompose({
+            to: [email.senderEmail],
+            subject: `Re: ${email.subject}`,
+            body: `\n\n--- Original message ---\nFrom: ${email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n\n${email.bodyText}`,
+          })
+        }}
+        onForward={(email) => {
+          openCompose({
+            subject: `Fwd: ${email.subject}`,
+            body: `\n\n--- Forwarded message ---\nFrom: ${email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n\n${email.bodyText}`,
+          })
+        }}
+        onDelete={() => {
+          // Refresh handled by event listener
+        }}
+      />
       <ComposeWindowManager />
     </div>
   )

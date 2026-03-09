@@ -15,6 +15,7 @@ import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
 import { useToastSuccess, useToastError } from '../shared/ui'
+import { useTemplateStore, type EmailTemplate } from '../settings/useTemplateStore'
 
 /**
  * Attachment during compose (includes File object)
@@ -44,6 +45,8 @@ export interface ComposeForm {
   body: string
   /** Attachments */
   attachments: ComposeAttachment[]
+  /** Selected template ID (optional) */
+  template?: string
 }
 
 /**
@@ -94,6 +97,7 @@ export function useComposeForm(options: UseComposeFormOptions = {}) {
   const { confirm, confirmation } = useConfirmationModal()
   const showSuccess = useToastSuccess()
   const showError = useToastError()
+  const { getTemplate, applyTemplate } = useTemplateStore()
 
   // Form state
   const [form, setForm] = useState<ComposeForm>({
@@ -103,6 +107,7 @@ export function useComposeForm(options: UseComposeFormOptions = {}) {
     subject: '',
     body: '',
     attachments: [],
+    template: '',
     ...initialValues,
   })
 
@@ -121,6 +126,7 @@ export function useComposeForm(options: UseComposeFormOptions = {}) {
       subject: '',
       body: '',
       attachments: [],
+      template: '',
       ...initialValues,
     })
   }, [initialValues])
@@ -134,6 +140,56 @@ export function useComposeForm(options: UseComposeFormOptions = {}) {
     },
     []
   )
+
+  /**
+   * Handle template selection
+   * Applies the selected template to the form
+   */
+  const handleTemplateChange = useCallback((templateId: string) => {
+    if (!templateId) {
+      // Clear template, reset form fields only if not manually edited?
+      // For now, just clear template selection
+      setForm((prev) => ({ ...prev, template: '' }))
+      return
+    }
+
+    const template = getTemplate(templateId)
+    if (!template) {
+      showError('Template not found')
+      return
+    }
+
+    // Apply template with basic variables
+    // In a real app, you'd gather these from user profile or settings
+    const companyInfo = {
+      company_name: 'Sternmed Afrika',
+      company_address: 'Nairobi, Kenya',
+      company_phone: '+254 XXX XXX XXX',
+      company_email: 'info@sternmed.co.ke',
+      website: 'https://sternmed.co.ke',
+      customer_name: form.to[0] ? form.to[0].split('@')[0] : '',
+      customer_email: form.to[0] || '',
+      current_date: new Date().toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+    }
+
+    try {
+      const { subject, bodyText } = applyTemplate(templateId, companyInfo)
+      setForm((prev) => ({
+        ...prev,
+        template: templateId,
+        subject: prev.subject || subject,
+        body: prev.body || bodyText,
+      }))
+      showSuccess(`Applied template: ${template.name}`)
+    } catch (error) {
+      console.error('Failed to apply template:', error)
+      showError('Failed to apply template')
+    }
+  }, [form.to, getTemplate, applyTemplate, showError, showSuccess])
 
   /**
    * Handle file input change
@@ -296,6 +352,7 @@ export function useComposeForm(options: UseComposeFormOptions = {}) {
     sending,
     savingDraft,
     handleInputChange,
+    handleTemplateChange,
     handleFileSelect,
     removeAttachment,
     sendEmail,

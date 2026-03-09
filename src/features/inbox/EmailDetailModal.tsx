@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useEmailModalStore } from './useEmailModalStore'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { useToastSuccess, useToastError } from '../shared/ui'
+import { useTheme } from '../../contexts/ThemeContext'
 
 /**
  * EmailDetailModal Props
@@ -27,56 +28,66 @@ interface EmailDetailModalProps {
 }
 
 // Icon components (inline SVGs matching Gmail style)
-const ArrowLeftIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+const ArrowLeftIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <path d="M15 18l-6-6 6-6"/>
   </svg>
 )
 
-const ArchiveIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
+const ArchiveIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
   </svg>
 )
 
-const ClockIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.5 13H11v-6l5.25 3.15-.75 1.23-3-1.79V15z"/>
+const ClockIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12,6 12,12 16,14"/>
   </svg>
 )
 
-const TrashIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+const TrashIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="3,6 5,6 21,6"/>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    <line x1="10" y1="11" x2="10" y2="17"/>
+    <line x1="14" y1="11" x2="14" y2="17"/>
   </svg>
 )
 
-const MailIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+const MailIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+    <polyline points="22,6 12,13 2,6"/>
   </svg>
 )
 
-const MoveIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.53 15.48 1 13.5 3L12 4.5 10.5 3C8.51 1 6 2.53 6 4.64c0 .48.1.92.18 1.36H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7.5-2.5c.28-.31.73-.5 1-.5.83 0 1.5.67 1.5 1.5S14.33 6 13.5 6h-3l1.5-2.5zM9 4.64c0-.83.67-1.5 1.5-1.5.28 0 .72.19 1 .5L13 6h-3C9.45 6 9 5.45 9 4.64zM20 19H4v-9h16v9z"/>
+const MoveIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="5,9 2,12 5,15"/>
+    <polyline points="9,5 12,2 15,5"/>
+    <polyline points="15,19 12,22 9,19"/>
+    <polyline points="19,9 22,12 19,15"/>
+    <line x1="2" y1="12" x2="22" y2="12"/>
+    <line x1="12" y1="2" x2="12" y2="22"/>
   </svg>
 )
 
-const DotsIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
+const DotsIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill={color}>
     <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
   </svg>
 )
 
-const StarIcon = ({ filled }: { filled: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? "#f4b400" : "none"} stroke={filled ? "#f4b400" : "#9aa0a6"} strokeWidth="2">
+const StarIcon = ({ filled, color }: { filled: boolean; color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth="2">
     <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
   </svg>
 )
 
-const EmojiIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2" strokeLinecap="round">
+const EmojiIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
     <circle cx="12" cy="12" r="10"/>
     <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
     <line x1="9" y1="9" x2="9.01" y2="9"/>
@@ -84,53 +95,69 @@ const EmojiIcon = () => (
   </svg>
 )
 
-const ReplyIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="#444746">
-    <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+const ReplyIcon = ({ color }: { color: string }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="9,14 4,9 9,4"/>
+    <path d="M20 20v-5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5"/>
   </svg>
 )
 
-const ForwardIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="#444746">
-    <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/>
+const ForwardIcon = ({ color }: { color: string }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="15,14 20,9 15,4"/>
+    <path d="M4 20v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5"/>
   </svg>
 )
 
-const ChevronLeftIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+const ChevronLeftIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="15,18 9,12 15,6"/>
   </svg>
 )
 
-const ChevronRightIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+const ChevronRightIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="9,18 15,12 9,6"/>
   </svg>
 )
 
-const ChevronDownIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="#444746">
+const CloseIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
+
+const PrintIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <polyline points="6,9 6,2 18,2 18,9"/>
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+    <rect x="6" y="14" width="12" height="8"/>
+  </svg>
+)
+
+const OpenIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+    <polyline points="15,3 21,3 21,9"/>
+    <line x1="10" y1="14" x2="21" y2="3"/>
+  </svg>
+)
+
+const MenuIcon = ({ color }: { color: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <circle cx="12" cy="12" r="1"/>
+    <circle cx="12" cy="5" r="1"/>
+    <circle cx="12" cy="19" r="1"/>
+  </svg>
+)
+
+const ChevronDownIcon = ({ color }: { color: string }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
     <path d="M7 10l5 5 5-5z"/>
   </svg>
 )
 
-const PrintIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
-  </svg>
-)
-
-const OpenIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-  </svg>
-)
-
-const MenuIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
-    <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-  </svg>
-)
 
 /**
  * EmailDetailModal Component
@@ -139,6 +166,7 @@ const MenuIcon = () => (
  */
 export default function EmailDetailModal({ onReply, onForward, onArchive, onDelete }: EmailDetailModalProps) {
   const { selectedEmail, isOpen, close } = useEmailModalStore()
+  const { colors } = useTheme()
 
   const [showAllMessages, setShowAllMessages] = useState(false)
   const [threadEmails, setThreadEmails] = useState<any[]>([])
@@ -310,12 +338,15 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="p-2 rounded-full hover:bg-[#f1f3f4] transition-colors"
+      className="p-2 rounded-full transition-colors"
       style={{
-        color: active ? '#1a73e8' : '#444746',
+        color: active ? colors.primary : colors.textSecondary,
+        backgroundColor: 'transparent',
       }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
     >
-      <Icon />
+      <Icon color={active ? colors.primary : colors.textSecondary} />
     </button>
   )
 
@@ -358,14 +389,15 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
 
       {/* Modal Content */}
       <div
-        className="fixed inset-4 md:inset-8 bg-white rounded-xl shadow-2xl z-50 flex flex-col overflow-hidden"
+        className="fixed inset-4 md:inset-8 rounded-xl shadow-2xl z-50 flex flex-col overflow-hidden"
+        style={{ backgroundColor: colors.surface }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Email detail"
       >
         {/* Top Toolbar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#f1f3f4] bg-white">
+        <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: colors.divider, backgroundColor: colors.surface }}>
           {/* Left: Navigation & Actions */}
           <div className="flex items-center gap-0">
             <ToolbarButton Icon={ArrowLeftIcon} label="Back" onClick={handleClose} />
@@ -379,25 +411,27 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
 
           {/* Right: Pagination & Actions */}
           <div className="flex items-center gap-1">
-            <span className="text-xs text-[#444746] mr-2">
+            <span className="text-xs mr-2" style={{ color: colors.textTertiary }}>
               {currentEmailIndex + 1} of {totalEmails}
             </span>
             <ToolbarButton Icon={ChevronLeftIcon} label="Older" onClick={() => {}} />
             <ToolbarButton Icon={ChevronRightIcon} label="Newer" onClick={() => {}} />
             <button
+              className="p-2 rounded-full transition-colors"
               style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: '6px 10px', borderRadius: 4, display: 'flex',
-                alignItems: 'center', gap: 4
+                backgroundColor: 'transparent',
+                color: colors.textSecondary,
               }}
-              className="hover:bg-[#f1f3f4] transition-colors"
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              title="More options"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#444746">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
                 <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
               </svg>
-              <ChevronDownIcon />
             </button>
+            <ToolbarButton Icon={CloseIcon} label="Close" onClick={handleClose} />
           </div>
         </div>
 
@@ -406,21 +440,40 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
           <div className="max-w-4xl mx-auto">
             {/* Subject + Action Buttons */}
             <div className="flex items-start justify-between gap-4 mb-6">
-              <h1 className="text-[22px] font-normal text-[#202124] flex-1">
+              <h1 className="text-[22px] font-normal flex-1" style={{ color: colors.textPrimary }}>
                 {currentEmail.subject || '(No subject)'}
               </h1>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#444746] bg-[#f1f3f4] rounded-full cursor-pointer hover:bg-[#e8eaed]">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full cursor-pointer"
+                  style={{
+                    color: colors.textSecondary,
+                    backgroundColor: colors.divider,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                >
                   Inbox
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="#9aa0a6">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill={colors.textTertiary}>
                     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                   </svg>
                 </span>
-                <button className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors" title="Print">
-                  <PrintIcon />
+                <button
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  title="Print"
+                >
+                  <PrintIcon color={colors.textSecondary} />
                 </button>
-                <button className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors" title="Open in new window">
-                  <OpenIcon />
+                <button
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  title="Open in new window"
+                >
+                  <OpenIcon color={colors.textSecondary} />
                 </button>
               </div>
             </div>
@@ -431,27 +484,28 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                 {/* Avatar with Supabase-style placeholder */}
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: '#e8eaed' }}
+                  style={{ backgroundColor: colors.surfaceHover }}
                 >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#9aa0a6">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill={colors.textTertiary}>
                     <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
                   </svg>
                 </div>
 
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-[#202124]">{senderEmail}</span>
+                    <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>{senderEmail}</span>
                   </div>
                   <button
                     onClick={() => setShowToDetails(s => !s)}
-                    className="flex items-center gap-1 text-sm text-[#5f6368] hover:underline bg-none border-none cursor-pointer p-0"
+                    className="flex items-center gap-1 text-sm hover:underline bg-none border-none cursor-pointer p-0"
+                    style={{ color: colors.textSecondary }}
                   >
                     <span>to me</span>
-                    <ChevronDownIcon />
+                    <ChevronDownIcon color={colors.textSecondary} />
                   </button>
 
                   {showToDetails && (
-                    <div className="mt-2 text-xs text-[#5f6368] bg-[#f8f9fa] p-3 rounded-lg" style={{ lineHeight: 1.8 }}>
+                    <div className="mt-2 text-xs p-3 rounded-lg" style={{ lineHeight: 1.8, backgroundColor: colors.selected, color: colors.textSecondary }}>
                       <div><strong>from:</strong> {senderEmail}</div>
                       <div><strong>to:</strong> sternmedafrika1@gmail.com</div>
                       <div><strong>date:</strong> {formatDate(currentEmail.receivedAt)}</div>
@@ -462,27 +516,56 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
               </div>
 
               <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="text-xs text-[#5f6368] mr-2">
+                <span className="text-xs mr-2" style={{ color: colors.textSecondary }}>
                   {formatDate(currentEmail.receivedAt)}
                 </span>
                 <button
                   onClick={handleToggleStar}
-                  className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors"
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   title={currentEmail.isStarred ? 'Remove star' : 'Add star'}
                 >
-                  <StarIcon filled={currentEmail.isStarred} />
+                  <StarIcon filled={currentEmail.isStarred} color={currentEmail.isStarred ? colors.accent : colors.textTertiary} />
                 </button>
-                <button className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors" title="Emoji reaction">
-                  <EmojiIcon />
+                <button
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  title="Emoji reaction"
+                >
+                  <EmojiIcon color={colors.textTertiary} />
                 </button>
-                <button className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors" onClick={handleReply} title="Reply">
-                  <ReplyIcon />
+                <button
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  onClick={handleReply}
+                  title="Reply"
+                >
+                  <ReplyIcon color={colors.textSecondary} />
                 </button>
-                <button className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors" onClick={handleForward} title="Forward">
-                  <ForwardIcon />
+                <button
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  onClick={handleForward}
+                  title="Forward"
+                >
+                  <ForwardIcon color={colors.textSecondary} />
                 </button>
-                <button className="p-2 hover:bg-[#f1f3f4] rounded-full transition-colors" title="More">
-                  <MenuIcon />
+                <button
+                  className="p-2 rounded-full transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  title="More"
+                >
+                  <MenuIcon color={colors.textSecondary} />
                 </button>
               </div>
             </div>
@@ -567,23 +650,55 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleReply}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#dadce0] rounded-full text-sm font-medium text-[#202124] hover:bg-[#f6f8fc] hover:shadow-sm transition-all"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+                  style={{
+                    backgroundColor: colors.surface,
+                    border: `1px solid ${colors.divider}`,
+                    color: colors.textPrimary,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.surfaceHover
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.surface
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
                 >
-                  <ReplyIcon />
+                  <ReplyIcon color={colors.primary} />
                   Reply
                 </button>
                 <button
                   onClick={handleForward}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#dadce0] rounded-full text-sm font-medium text-[#202124] hover:bg-[#f6f8fc] hover:shadow-sm transition-all"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+                  style={{
+                    backgroundColor: colors.surface,
+                    border: `1px solid ${colors.divider}`,
+                    color: colors.textPrimary,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.surfaceHover
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.surface
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
                 >
-                  <ForwardIcon />
+                  <ForwardIcon color={colors.primary} />
                   Forward
                 </button>
                 <button
-                  className="p-2.5 border border-[#dadce0] rounded-full hover:bg-[#f6f8fc] transition-colors"
+                  className="p-2.5 border rounded-full transition-colors"
+                  style={{
+                    borderColor: colors.divider,
+                    backgroundColor: colors.surface,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.surface}
                   title="Add emoji reaction"
                 >
-                  <EmojiIcon />
+                  <EmojiIcon color={colors.textTertiary} />
                 </button>
               </div>
             </div>
