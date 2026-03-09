@@ -572,14 +572,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
 
             {/* Email Body */}
             <div className="pl-14">
-              {/* Supabase logo placeholder */}
-              <div className="mb-7">
-                <svg width="36" height="36" viewBox="0 0 24 24">
-                  <path d="M11.9 1.036c-.015-.986-1.26-1.41-1.874-.637L.764 12.05C.199 12.768.718 13.81 1.638 13.81H12.92l.027 9.156c.015.986 1.26 1.41 1.874.637l9.262-11.653c.565-.718.046-1.76-.874-1.76H11.927l-.027-9.154z" fill="#3ECF8E"/>
-                </svg>
-              </div>
-
-              <div className="text-[15px] text-[#202124] leading-relaxed max-w-[580px]">
+              <div className="text-[15px] leading-relaxed max-w-[580px]" style={{ color: colors.textPrimary }}>
                 {currentEmail.bodyHtml ? (
                   <div
                     className="email-body"
@@ -594,19 +587,24 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
 
               {/* Attachments */}
               {currentEmail.attachments && currentEmail.attachments.length > 0 && (
-                <div className="mt-6 border-t border-[#f1f3f4] pt-4">
-                  <h3 className="text-sm font-medium text-[#444746] mb-3">
+                <div className="mt-6 border-t pt-4" style={{ borderColor: colors.divider }}>
+                  <h3 className="text-sm font-medium mb-3" style={{ color: colors.textSecondary }}>
                     Attachments ({currentEmail.attachments.length})
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {currentEmail.attachments.map((att: any, idx: number) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-3 p-3 bg-[#f8f9fa] rounded-lg border border-[#f1f3f4]"
+                        className="flex items-center gap-3 p-3 rounded-lg border"
+                        style={{
+                          backgroundColor: colors.searchBackground,
+                          borderColor: colors.divider,
+                        }}
                       >
-                        <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: colors.primary + '20' }}>
                           <svg
-                            className="w-5 h-5 text-blue-600"
+                            className="w-5 h-5"
+                            style={{ color: colors.primary }}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -620,10 +618,10 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                           </svg>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-[#202124] truncate">
+                          <p className="text-sm font-medium truncate" style={{ color: colors.textPrimary }}>
                             {att.filename}
                           </p>
-                          <p className="text-xs text-[#5f6368]">
+                          <p className="text-xs" style={{ color: colors.textTertiary }}>
                             {(att.size / 1024).toFixed(1)} KB
                           </p>
                         </div>
@@ -633,7 +631,8 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             download={att.filename}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-[#1a73e8] hover:underline flex-shrink-0"
+                            className="text-sm flex-shrink-0"
+                            style={{ color: colors.primary }}
                           >
                             Download
                           </a>

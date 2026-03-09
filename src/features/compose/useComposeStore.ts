@@ -65,8 +65,8 @@ interface ComposeStore {
   updateWindowPosition: (id: string, x: number, y: number) => void
 }
 
-const COMPOSE_WIDTH = 600
-const COMPOSE_HEIGHT = 500
+const COMPOSE_WIDTH = 700
+const COMPOSE_HEIGHT = 650
 const OFFSET = 30
 
 export const useComposeStore = create<ComposeStore>((set, get) => ({

@@ -432,6 +432,7 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
               border: `1px solid ${colors.border}`,
               color: colors.textPrimary,
               fontFamily: 'inherit',
+              minHeight: '200px',
             }}
             placeholder="Type your message here..."
           />
