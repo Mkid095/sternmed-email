@@ -4,12 +4,14 @@ import { emailInboundService } from '../../services/supabase/email-inbound.servi
 import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
 import { ArrowLeft, Star, MailOpen, Reply } from 'lucide-react'
+import { useTheme } from '../../contexts/ThemeContext'
 import type { EmailInbound } from '../../types'
 
 export default function ThreadDetailView() {
   const { threadId } = useParams<{ threadId: string }>()
   const navigate = useNavigate()
   const { emailAliasId } = useAuthStore()
+  const { colors } = useTheme()
 
   const [thread, setThread] = useState<EmailInbound[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +23,6 @@ export default function ThreadDetailView() {
       setLoading(true)
       try {
         const emails = await emailInboundService.getThread(threadId)
-        // Only show emails for this alias
         const filtered = emails.filter(e => e.aliasId === emailAliasId)
         setThread(filtered)
       } catch (error) {
@@ -49,20 +50,21 @@ export default function ThreadDetailView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="flex items-center justify-center h-full" style={{ backgroundColor: colors.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: colors.primary }} />
       </div>
     )
   }
 
   if (thread.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500">
-        <MailOpen className="w-16 h-16 mb-4" />
-        <p>Thread not found</p>
+      <div className="flex flex-col items-center justify-center h-full" style={{ backgroundColor: colors.background }}>
+        <MailOpen size={64} className="mb-4 opacity-30" style={{ color: colors.textSecondary }} />
+        <p style={{ color: colors.textSecondary }}>Thread not found</p>
         <button
           onClick={() => navigate('/inbox')}
-          className="mt-4 text-blue-600 hover:text-blue-700"
+          className="mt-4 font-medium hover:underline"
+          style={{ color: colors.primary }}
         >
           Back to Inbox
         </button>
@@ -71,23 +73,24 @@ export default function ThreadDetailView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
+      <div className="p-6 border-b" style={{ borderColor: colors.divider }}>
         <div className="max-w-4xl mx-auto">
           <button
             onClick={() => navigate('/inbox')}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
+            className="flex items-center gap-2 text-sm mb-4 hover:underline"
+            style={{ color: colors.textSecondary }}
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft size={16} />
             Back to Inbox
           </button>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl font-bold mb-2" style={{ color: colors.textPrimary }}>
             {thread[0].subject || '(No subject)'}
           </h1>
 
-          <p className="text-sm text-gray-500">
+          <p className="text-sm" style={{ color: colors.textSecondary }}>
             {thread.length} message{thread.length > 1 ? 's' : ''} in this conversation
           </p>
         </div>
@@ -96,23 +99,37 @@ export default function ThreadDetailView() {
       {/* Thread Messages */}
       <div className="flex-1 overflow-y-auto max-w-4xl mx-auto w-full p-6 space-y-6">
         {thread.map((email, idx) => (
-          <div key={email.id} className={`${idx > 0 ? 'pt-6 border-t border-gray-100' : ''}`}>
+          <div
+            key={email.id}
+            className={`pb-6 ${idx > 0 ? 'border-t' : ''}`}
+            style={{ borderColor: colors.divider }}
+          >
             <div className="flex items-center gap-4 mb-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium"
+                style={{ backgroundColor: colors.primary }}
+              >
                 {(email.senderName || email.senderEmail)?.[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900">
+                <p className="font-medium" style={{ color: colors.textPrimary }}>
                   {email.senderName || email.senderEmail}
                 </p>
-                <p className="text-sm text-gray-500">{email.senderEmail}</p>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  {email.senderEmail}
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm" style={{ color: colors.textTertiary }}>
                   {format(new Date(email.receivedAt), 'PPPPp')}
                 </p>
                 {!email.isRead && (
-                  <span className="text-xs text-blue-600 font-medium">Unread</span>
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded"
+                    style={{ backgroundColor: colors.primary + '20', color: colors.primary }}
+                  >
+                    Unread
+                  </span>
                 )}
               </div>
             </div>
@@ -120,16 +137,17 @@ export default function ThreadDetailView() {
             <div className="ml-14">
               {/* Attachments */}
               {email.attachments && email.attachments.length > 0 && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Attachments:</p>
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.searchBackground }}>
+                  <p className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Attachments:</p>
                   <div className="flex flex-wrap gap-2">
                     {email.attachments.map((att, attIdx) => (
                       <span
                         key={attIdx}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm"
+                        style={{ backgroundColor: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.divider}` }}
                       >
                         📎 {att.filename}
-                        <span className="text-gray-400">({(att.size / 1024).toFixed(1)} KB)</span>
+                        <span style={{ color: colors.textTertiary }}>({(att.size / 1024).toFixed(1)} KB)</span>
                       </span>
                     ))}
                   </div>
@@ -137,30 +155,33 @@ export default function ThreadDetailView() {
               )}
 
               {/* Body */}
-              <div className="prose max-w-none">
+              <div className="prose max-w-none" style={{ color: colors.textPrimary }}>
                 {email.bodyHtml ? (
                   <div dangerouslySetInnerHTML={{ __html: email.bodyHtml }} />
                 ) : (
-                  <div className="whitespace-pre-wrap text-gray-800">{email.bodyText}</div>
+                  <div className="whitespace-pre-wrap">{email.bodyText}</div>
                 )}
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderColor: colors.divider }}>
                 <button
                   onClick={() => toggleStar(email.id)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    email.isStarred
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                    email.isStarred ? 'bg-yellow-100 text-yellow-700' : ''
                   }`}
+                  style={{
+                    backgroundColor: email.isStarred ? undefined : colors.surfaceHover,
+                    color: email.isStarred ? undefined : colors.textSecondary,
+                  }}
                 >
-                  <Star className={`w-4 h-4 ${email.isStarred ? 'fill-yellow-400' : ''}`} />
+                  <Star size={14} fill={email.isStarred ? 'currentColor' : 'none'} />
                   {email.isStarred ? 'Starred' : 'Star'}
                 </button>
                 <button
                   onClick={() => handleReply(email)}
-                  className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                  className="px-3 py-1.5 rounded-full text-sm transition-colors"
+                  style={{ backgroundColor: colors.accent, color: colors.primary }}
                 >
                   Reply
                 </button>

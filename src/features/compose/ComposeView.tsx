@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Send, Trash2, File, Paperclip, Save, Bold, Italic, Underline, List } from 'lucide-react'
+import { Send, Trash2, File, Paperclip, Save } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
 import { storageService } from '../../services/storage.service'
+import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
 
@@ -23,6 +24,7 @@ export default function ComposeView() {
   const [searchParams] = useSearchParams()
   const replyToId = searchParams.get('reply')
   const { emailAliasId, user } = useAuthStore()
+  const { colors } = useTheme()
   const { confirm, confirmation } = useConfirmationModal()
 
   const [to, setTo] = useState<string[]>([])
@@ -40,7 +42,6 @@ export default function ComposeView() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load draft from sessionStorage on mount (for editing)
   useEffect(() => {
     const editDraftData = sessionStorage.getItem('editDraft')
     if (editDraftData) {
@@ -59,7 +60,6 @@ export default function ComposeView() {
     }
   }, [])
 
-  // Load email to reply to
   useEffect(() => {
     if (replyToId && emailAliasId) {
       const loadReplyTo = async () => {
@@ -78,13 +78,11 @@ export default function ComposeView() {
     }
   }, [replyToId, emailAliasId])
 
-  // Autosave effect
   useEffect(() => {
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current)
     }
 
-    // Only autosave if there's content
     if (subject || body) {
       autosaveTimerRef.current = setTimeout(autosaveDraft, 2000)
     }
@@ -102,7 +100,6 @@ export default function ComposeView() {
     setSavingDraft(true)
 
     try {
-      // Upload attachments to Cloudinary
       const uploadedAttachments = await Promise.all(
         attachments.filter(a => !a.cloudinaryUrl).map(async (attachment) => {
           const url = await storageService.uploadFile(attachment.file, 'email_attachments')
@@ -115,7 +112,6 @@ export default function ComposeView() {
         })
       )
 
-      // Merge with already-uploaded attachments (existing are guaranteed to have cloudinaryUrl due to filter)
       const allAttachments = [
         ...attachments.filter(a => a.cloudinaryUrl).map(a => ({
           filename: a.name,
@@ -137,11 +133,8 @@ export default function ComposeView() {
       }
 
       if (draftId) {
-        // Update existing draft by creating a new pending record (email_outbound doesn't have true updates for drafts)
-        // For simplicity, we'll create a new draft
         await emailOutboundService.saveAsDraft(emailAliasId, draftData)
       } else {
-        // Create new draft
         const draft = await emailOutboundService.saveAsDraft(emailAliasId, draftData)
         setDraftId(draft.id)
       }
@@ -180,7 +173,6 @@ export default function ComposeView() {
     setSending(true)
 
     try {
-      // Separate attachments: existing (with cloudinaryUrl) and new (need upload)
       const existing = attachments.filter(a => a.cloudinaryUrl).map(a => ({
         filename: a.name,
         url: a.cloudinaryUrl!,
@@ -203,7 +195,6 @@ export default function ComposeView() {
 
       const allAttachments = [...existing, ...uploaded]
 
-      // Send via service (this handles rate limiting, etc.)
       await emailOutboundService.sendEmail(emailAliasId, {
         aliasId: emailAliasId,
         recipientEmail: to[0],
@@ -215,12 +206,10 @@ export default function ComposeView() {
         attachments: allAttachments,
       })
 
-      // Delete draft record if this was a draft
       if (draftId) {
         await emailOutboundService.softDelete(draftId)
       }
 
-      // Reset form
       setTo([])
       setCc([])
       setBcc([])
@@ -300,31 +289,25 @@ export default function ComposeView() {
     }
   }
 
-  const handleTextFormat = (format: string) => {
-    const textarea = document.createElement('textarea')
-    document.body.appendChild(textarea)
-    textarea.value = body
-    textarea.focus()
-    document.execCommand(format, false, undefined)
-    setBody(textarea.value)
-    document.body.removeChild(textarea)
-  }
-
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <div
+        className="px-6 py-4 flex items-center justify-between border-b"
+        style={{ borderColor: colors.divider }}
+      >
         <div>
-          <h1 className="text-xl font-bold text-gray-900">
+          <h1 className="text-xl font-bold" style={{ color: colors.textPrimary }}>
             {draftId ? 'Edit Draft' : 'New Email'}
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm" style={{ color: colors.textSecondary }}>
             From: {user?.email}
           </p>
         </div>
         <button
           onClick={handleDiscard}
-          className="text-sm text-gray-500 hover:text-gray-700"
+          className="text-sm hover:underline"
+          style={{ color: colors.textSecondary }}
         >
           Discard
         </button>
@@ -335,18 +318,20 @@ export default function ComposeView() {
         <div className="max-w-4xl mx-auto space-y-4">
           {/* To Field */}
           <div className="flex items-start gap-2">
-            <label className="w-16 text-sm font-medium text-gray-600 pt-2">To:</label>
+            <label className="w-16 text-sm font-medium pt-2" style={{ color: colors.textSecondary }}>To:</label>
             <div className="flex-1 flex flex-wrap gap-2">
               {to.map((recipient, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
+                  style={{ backgroundColor: colors.searchBackground, color: colors.textPrimary }}
                 >
                   {recipient}
                   <button
                     type="button"
                     onClick={() => setTo(to.filter((_, i) => i !== idx))}
-                    className="text-gray-500 hover:text-gray-700 ml-1"
+                    className="hover:opacity-70"
+                    style={{ color: colors.textSecondary }}
                   >
                     ×
                   </button>
@@ -372,7 +357,12 @@ export default function ComposeView() {
                   setTo(unique.slice(0, 10))
                 }}
                 placeholder="email@example.com"
-                className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-lg outline-none"
+                style={{
+                  backgroundColor: colors.searchBackground,
+                  color: colors.textPrimary,
+                  border: `1px solid ${colors.border}`,
+                }}
               />
             </div>
           </div>
@@ -382,14 +372,16 @@ export default function ComposeView() {
             <button
               type="button"
               onClick={() => setShowCc(!showCc)}
-              className={`text-sm ${showCc ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'}`}
+              className="text-sm hover:underline"
+              style={{ color: showCc ? colors.primary : colors.textSecondary }}
             >
               Cc
             </button>
             <button
               type="button"
               onClick={() => setShowBcc(!showBcc)}
-              className={`text-sm ${showBcc ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'}`}
+              className="text-sm hover:underline"
+              style={{ color: showBcc ? colors.primary : colors.textSecondary }}
             >
               Bcc
             </button>
@@ -398,18 +390,20 @@ export default function ComposeView() {
           {/* CC Field */}
           {showCc && (
             <div className="flex items-start gap-2">
-              <label className="w-16 text-sm font-medium text-gray-600 pt-2">Cc:</label>
+              <label className="w-16 text-sm font-medium pt-2" style={{ color: colors.textSecondary }}>Cc:</label>
               <div className="flex-1 flex flex-wrap gap-2">
                 {cc.map((recipient, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
+                    style={{ backgroundColor: colors.searchBackground, color: colors.textPrimary }}
                   >
                     {recipient}
                     <button
                       type="button"
                       onClick={() => setCc(cc.filter((_, i) => i !== idx))}
-                      className="text-gray-500 hover:text-gray-700 ml-1"
+                      className="hover:opacity-70"
+                      style={{ color: colors.textSecondary }}
                     >
                       ×
                     </button>
@@ -428,7 +422,12 @@ export default function ComposeView() {
                     }
                   }}
                   placeholder="cc@example.com"
-                  className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 min-w-[200px] px-3 py-2 rounded-lg outline-none"
+                  style={{
+                    backgroundColor: colors.searchBackground,
+                    color: colors.textPrimary,
+                    border: `1px solid ${colors.border}`,
+                  }}
                 />
               </div>
             </div>
@@ -437,18 +436,20 @@ export default function ComposeView() {
           {/* BCC Field */}
           {showBcc && (
             <div className="flex items-start gap-2">
-              <label className="w-16 text-sm font-medium text-gray-600 pt-2">Bcc:</label>
+              <label className="w-16 text-sm font-medium pt-2" style={{ color: colors.textSecondary }}>Bcc:</label>
               <div className="flex-1 flex flex-wrap gap-2">
                 {bcc.map((recipient, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
+                    style={{ backgroundColor: colors.searchBackground, color: colors.textPrimary }}
                   >
                     {recipient}
                     <button
                       type="button"
                       onClick={() => setBcc(bcc.filter((_, i) => i !== idx))}
-                      className="text-gray-500 hover:text-gray-700 ml-1"
+                      className="hover:opacity-70"
+                      style={{ color: colors.textSecondary }}
                     >
                       ×
                     </button>
@@ -467,7 +468,12 @@ export default function ComposeView() {
                     }
                   }}
                   placeholder="bcc@example.com"
-                  className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 min-w-[200px] px-3 py-2 rounded-lg outline-none"
+                  style={{
+                    backgroundColor: colors.searchBackground,
+                    color: colors.textPrimary,
+                    border: `1px solid ${colors.border}`,
+                  }}
                 />
               </div>
             </div>
@@ -475,13 +481,18 @@ export default function ComposeView() {
 
           {/* Subject */}
           <div className="flex items-center gap-2">
-            <label className="w-16 text-sm font-medium text-gray-600">Subject:</label>
+            <label className="w-16 text-sm font-medium" style={{ color: colors.textSecondary }}>Subject:</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Email subject"
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-3 rounded-lg outline-none"
+              style={{
+                backgroundColor: colors.searchBackground,
+                color: colors.textPrimary,
+                border: `1px solid ${colors.border}`,
+              }}
             />
           </div>
 
@@ -492,9 +503,14 @@ export default function ComposeView() {
               onChange={(e) => setBody(e.target.value)}
               placeholder="Write your email content here..."
               rows={12}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
+              className="w-full px-4 py-3 rounded-lg outline-none resize-none font-mono text-sm"
+              style={{
+                backgroundColor: colors.searchBackground,
+                color: colors.textPrimary,
+                border: `1px solid ${colors.border}`,
+              }}
             />
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs mt-1" style={{ color: colors.textTertiary }}>
               Supports plain text. Use *bold* or - lists for simple formatting.
             </p>
           </div>
@@ -506,19 +522,21 @@ export default function ComposeView() {
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg"
+                    style={{ backgroundColor: colors.surfaceHover }}
                   >
-                    <File className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-700 max-w-[200px] truncate">
+                    <File size={16} style={{ color: colors.textSecondary }} />
+                    <span className="text-sm truncate max-w-[200px]" style={{ color: colors.textPrimary }}>
                       {attachment.name}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs" style={{ color: colors.textTertiary }}>
                       ({formatFileSize(attachment.size)})
                     </span>
                     <button
                       type="button"
                       onClick={() => removeAttachment(attachment.id)}
-                      className="text-gray-500 hover:text-red-600"
+                      className="hover:opacity-70"
+                      style={{ color: colors.textSecondary }}
                     >
                       ×
                     </button>
@@ -531,9 +549,12 @@ export default function ComposeView() {
       </div>
 
       {/* Footer Actions */}
-      <div className="p-4 bg-gray-50 border-t border-gray-200">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+      <div
+        className="p-4 flex items-center justify-between border-t"
+        style={{ borderColor: colors.divider }}
+      >
+        <div className="max-w-4xl mx-auto flex items-center justify-between w-full">
+          <p className="text-sm" style={{ color: colors.textSecondary }}>
             {savingDraft ? 'Saving draft...' : draftId && !savingDraft ? 'Draft saved' : ''}
           </p>
 
@@ -541,9 +562,13 @@ export default function ComposeView() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
+              style={{
+                backgroundColor: colors.surfaceHover,
+                color: colors.textSecondary,
+              }}
             >
-              <Paperclip className="w-4 h-4" />
+              <Paperclip size={16} />
               Attach
             </button>
             <input
@@ -558,21 +583,22 @@ export default function ComposeView() {
               type="button"
               onClick={autosaveDraft}
               disabled={savingDraft || !subject}
-              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+              className="px-4 py-2 text-sm rounded-lg transition-colors inline-flex items-center gap-2 disabled:opacity-50"
+              style={{
+                backgroundColor: colors.surfaceHover,
+                color: colors.textSecondary,
+              }}
             >
-              <Save className="w-4 h-4" />
+              <Save size={16} />
               Save Draft
             </button>
             <button
               onClick={handleSend}
               disabled={sending || to.length === 0 || !subject}
-              className={`inline-flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors ${
-                sending || to.length === 0 || !subject
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+              className="inline-flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors disabled:opacity-50"
+              style={{ backgroundColor: colors.primary }}
             >
-              <Send className="w-4 h-4" />
+              <Send size={16} />
               {sending ? 'Sending...' : 'Send'}
             </button>
           </div>
