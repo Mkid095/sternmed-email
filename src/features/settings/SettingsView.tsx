@@ -5,6 +5,7 @@ import { supabase } from '../../config/supabase'
 import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
+import { useTemplateStore, type EmailTemplate } from './useTemplateStore'
 import {
   User,
   Lock,
@@ -25,15 +26,6 @@ const COMPANY_EMAIL = 'info@sternmed.afrika'
 const COMPANY_PHONE = '+254 700 000 000'
 const COMPANY_WEBSITE = 'www.sternmed.afrika'
 
-interface EmailTemplate {
-  id: string
-  name: string
-  subject: string
-  body_html: string
-  category: string
-  is_system: boolean
-}
-
 type TabKey = 'profile' | 'templates'
 
 export default function SettingsView() {
@@ -45,7 +37,6 @@ export default function SettingsView() {
   const [alias, setAlias] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('profile')
-  const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [showTemplateModal, setShowTemplateModal] = useState(false)
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
@@ -55,6 +46,9 @@ export default function SettingsView() {
     body: '',
     category: 'general'
   })
+
+  // Use template store for shared template state
+  const { templates, fetchTemplates, addTemplate, updateTemplate, deleteTemplate } = useTemplateStore()
 
   useEffect(() => {
     const fetchAlias = async () => {
@@ -75,18 +69,7 @@ export default function SettingsView() {
 
   useEffect(() => {
     fetchTemplates()
-  }, [])
-
-  const fetchTemplates = async () => {
-    const { data, error } = await supabase
-      .from('email_templates')
-      .select('*')
-      .order('name')
-
-    if (!error && data) {
-      setTemplates(data as EmailTemplate[])
-    }
-  }
+  }, [fetchTemplates])
 
   const handleSaveTemplate = async () => {
     if (!templateForm.name || !templateForm.subject || !templateForm.body) {
@@ -103,33 +86,32 @@ export default function SettingsView() {
 
     const htmlBody = convertToHtml(bodyWithBranding)
 
-    if (editingTemplate) {
-      await supabase
-        .from('email_templates')
-        .update({
+    try {
+      if (editingTemplate) {
+        await updateTemplate(editingTemplate.id, {
           name: templateForm.name,
           subject: templateForm.subject,
-          body_html: htmlBody,
+          bodyHtml: htmlBody,
+          bodyText: templateForm.body,
           category: templateForm.category,
         })
-        .eq('id', editingTemplate.id)
-    } else {
-      await supabase
-        .from('email_templates')
-        .insert({
+      } else {
+        await addTemplate({
           name: templateForm.name,
           subject: templateForm.subject,
-          body_html: htmlBody,
-          body_text: templateForm.body,
+          bodyHtml: htmlBody,
+          bodyText: templateForm.body,
           category: templateForm.category,
-          is_system: false,
         })
-    }
+      }
 
-    setShowTemplateModal(false)
-    setEditingTemplate(null)
-    setTemplateForm({ name: '', subject: '', body: '', category: 'general' })
-    fetchTemplates()
+      setShowTemplateModal(false)
+      setEditingTemplate(null)
+      setTemplateForm({ name: '', subject: '', body: '', category: 'general' })
+    } catch (error) {
+      console.error('Failed to save template:', error)
+      alert('Failed to save template')
+    }
   }
 
   const handleDeleteTemplate = async (id: string) => {
@@ -142,8 +124,12 @@ export default function SettingsView() {
 
     if (!result) return
 
-    await supabase.from('email_templates').delete().eq('id', id)
-    fetchTemplates()
+    try {
+      await deleteTemplate(id)
+    } catch (error) {
+      console.error('Failed to delete template:', error)
+      alert('Failed to delete template')
+    }
   }
 
   const handleEditTemplate = (template: EmailTemplate) => {
@@ -151,7 +137,7 @@ export default function SettingsView() {
     setTemplateForm({
       name: template.name,
       subject: template.subject,
-      body: template.body_html,
+      body: template.bodyText,
       category: template.category,
     })
     setShowTemplateModal(true)
@@ -374,7 +360,7 @@ export default function SettingsView() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <h3 className="font-semibold" style={{ color: colors.textPrimary }}>{template.name}</h3>
-                          {template.is_system && (
+                          {template.isDefault && (
                             <span
                               className="text-xs px-2 py-0.5 rounded"
                               style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
@@ -393,7 +379,7 @@ export default function SettingsView() {
                           Subject: {template.subject}
                         </p>
                         <p className="text-xs truncate" style={{ color: colors.textTertiary }}>
-                          {template.body_html.replace(/<[^>]*>/g, '').substring(0, 100)}...
+                          {template.bodyHtml.replace(/<[^>]*>/g, '').substring(0, 100)}...
                         </p>
                       </div>
                       <div className="flex items-center gap-2 ml-4">
@@ -405,7 +391,7 @@ export default function SettingsView() {
                         >
                           <Eye size={16} />
                         </button>
-                        {!template.is_system && (
+                        {!template.isDefault && (
                           <>
                             <button
                               onClick={() => handleEditTemplate(template)}
@@ -640,7 +626,7 @@ The {{company_name}} Team`}
                 <div
                   className="prose max-w-none"
                   style={{ color: colors.textPrimary }}
-                  dangerouslySetInnerHTML={{ __html: previewTemplate.body_html }}
+                  dangerouslySetInnerHTML={{ __html: previewTemplate.bodyHtml }}
                 />
               </div>
             </div>
