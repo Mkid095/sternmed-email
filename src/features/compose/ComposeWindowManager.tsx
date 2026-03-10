@@ -1,14 +1,35 @@
 /**
- * Compose Window Manager
- *
- * Manages multiple floating compose windows.
- * Handles opening, closing, minimizing, restoring, and z-index stacking.
- *
+ * ============================================================================
+ * COMPOSE WINDOW MANAGER
+ * ============================================================================
+ * 
+ * This module manages multiple floating compose windows in the email application.
+ * It provides a Gmail-like experience where users can:
+ * - Open multiple compose windows simultaneously
+ * - Drag windows to reposition them
+ * - Minimize windows to a dock at the bottom
+ * - Restore minimized windows
+ * - Manage z-index stacking (bring windows to front on click)
+ * 
+ * Architecture:
+ * - ComposeWindowManager: Parent component that renders all active windows
+ * - ComposeWindow: Individual floating window component
+ * - useComposeStore: Zustand store for window state management
+ * - useComposeForm: Custom hook for form handling
+ * 
  * @module features/compose/ComposeWindowManager
+ * @author Sternmed Email Team
+ * @version 2.0.0
+ * ============================================================================
  */
 
 import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react'
-import { X, Minus } from 'lucide-react'
+import { 
+  X,           // Close button icon
+  Minus,       // Minimize button icon
+  Maximize2,   // Restore/expand icon
+  GripVertical // Drag handle icon
+} from 'lucide-react'
 import { useComposeForm } from './useComposeForm'
 import { useAuthStore } from '../../store/authStore'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
@@ -18,6 +39,13 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { supabase } from '../../config/supabase'
 import type { ComposeWindow } from './useComposeStore'
 
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+/**
+ * Email template structure from the database
+ */
 interface EmailTemplate {
   id: string
   name: string
@@ -28,51 +56,121 @@ interface EmailTemplate {
 }
 
 /**
- * Props for individual ComposeWindow (internal)
+ * Props passed to each individual compose window
  */
 interface ComposeWindowProps {
-  win: ComposeWindow
-  onClose: () => void
-  onMinimize: () => void
-  onRestore: () => void
-  onActivate: () => void
-  templates: EmailTemplate[]
+  win: ComposeWindow           // Window state from store
+  onClose: () => void          // Callback to close the window
+  onMinimize: () => void       // Callback to minimize the window
+  onRestore: () => void        // Callback to restore from minimized state
+  onActivate: () => void       // Callback to bring window to front
+  templates: EmailTemplate[]   // Available email templates
 }
 
 /**
- * Individual Compose Window Component
- *
- * Renders a floating window with a header (title, minimize, close) and a compose form.
- * When minimized, shows only a small bar at bottom-right.
+ * Company information used for template placeholders
+ * TODO: Move to user settings/configuration
  */
-function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templates }: ComposeWindowProps) {
-  const { form, sending, savingDraft, handleInputChange, handleFileSelect, removeAttachment, sendEmail, saveAsDraft, resetForm, formatFileSize } =
-    useComposeForm({ initialValues: win.initialData })
+const COMPANY_INFO = {
+  company_name: 'Sternmed Afrika',
+  company_address: 'Nairobi, Kenya',
+  company_phone: '+254 XXX XXX XXX',
+  company_email: 'info@sternmed.co.ke',
+  website: 'https://sternmed.co.ke',
+  current_date: new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }),
+}
 
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** Default dimensions for compose window */
+const WINDOW_DEFAULTS = {
+  WIDTH: 600,
+  HEIGHT: 520,
+  MIN_WIDTH: 400,
+  MIN_HEIGHT: 400,
+} as const
+
+/** Z-index range for window stacking */
+const Z_INDEX = {
+  MIN: 100,
+  MAX: 999,
+} as const
+
+// ============================================================================
+// COMPOSE WINDOW COMPONENT
+// ============================================================================
+
+/**
+ * Individual Compose Window Component
+ * 
+ * Renders a floating, draggable window with an email compose form.
+ * Supports minimize/restore functionality and drag-to-reposition.
+ * 
+ * Features:
+ * - Draggable header for repositioning
+ * - Minimize to compact bar
+ * - Form validation before send
+ * - Template selection with placeholder replacement
+ * - File attachments
+ * - Draft auto-save
+ * 
+ * @param props - Window props including state and callbacks
+ */
+function ComposeWindow({ 
+  win, 
+  onClose, 
+  onMinimize, 
+  onRestore, 
+  onActivate, 
+  templates 
+}: ComposeWindowProps) {
+  // ========================================================================
+  // HOOKS & STATE
+  // ========================================================================
+  
+  /** Form handling hook with all email state and operations */
+  const { 
+    form, 
+    sending, 
+    savingDraft, 
+    handleInputChange, 
+    handleFileSelect, 
+    removeAttachment, 
+    sendEmail, 
+    saveAsDraft, 
+    resetForm, 
+    formatFileSize 
+  } = useComposeForm({ initialValues: win.initialData })
+
+  /** Toast notifications */
   const showSuccess = useToastSuccess()
   const showError = useToastError()
 
-  // Get user's email alias ID for draft updates
+  /** Auth and theme */
   const emailAliasId = useAuthStore((state) => state.emailAliasId)
   const { colors } = useTheme()
+  
+  /** Store actions */
   const updateWindowPosition = useComposeStore((state) => state.updateWindowPosition)
 
-  // Company info for template placeholders (could come from user profile later)
-  const companyInfo = {
-    company_name: 'Sternmed Afrika',
-    company_address: 'Nairobi, Kenya',
-    company_phone: '+254 XXX XXX XXX',
-    company_email: 'info@sternmed.co.ke',
-    website: 'https://sternmed.co.ke',
-    current_date: new Date().toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }),
-  }
+  /** Drag state */
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const windowRef = useRef<HTMLDivElement>(null)
+
+  // ========================================================================
+  // TEMPLATE HANDLING
+  // ========================================================================
 
   /**
-   * Handle template selection from dropdown
+   * Handles template selection from dropdown
+   * Replaces placeholders with actual values (company info, customer name, etc.)
    */
   const handleTemplateSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value
@@ -92,13 +190,13 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
     let bodyText = template.body_text || template.body_html.replace(/<[^>]*>/g, '')
 
     // Replace company variables
-    Object.entries(companyInfo).forEach(([key, value]) => {
+    Object.entries(COMPANY_INFO).forEach(([key, value]) => {
       const placeholder = `{{${key}}}`
       subject = subject.replace(new RegExp(placeholder, 'g'), value)
       bodyText = bodyText.replace(new RegExp(placeholder, 'g'), value)
     })
 
-    // Also replace {{customer_name}} and {{customer_email}} with recipient if available
+    // Replace customer variables if recipient exists
     if (form.to[0]) {
       const customerName = form.to[0].split('@')[0]
       subject = subject.replace(/\{\{customer_name\}\}/g, customerName)
@@ -112,12 +210,13 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
     showSuccess(`Applied template: ${template.name}`)
   }
 
-  // Dragging state
-  const [isDragging, setIsDragging] = useState(false)
-  const windowRef = useRef<HTMLDivElement>(null)
+  // ========================================================================
+  // FORM SUBMISSION HANDLERS
+  // ========================================================================
 
   /**
-   * Handle form submission (Send)
+   * Handle form submission (Send Email)
+   * Validates and sends the email, closes window on success
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -129,6 +228,7 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
 
   /**
    * Handle save draft
+   * Updates existing draft or creates new one
    */
   const handleSaveDraft = async () => {
     if (win.draftId) {
@@ -148,7 +248,6 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
         })
         showSuccess('Draft saved')
         onClose()
-        // Refresh lists (drafts, etc.)
         window.dispatchEvent(new Event('email-deleted'))
       } catch (error) {
         console.error('Failed to update draft:', error)
@@ -165,307 +264,413 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
   }
 
   /**
-   * Handle cancel (close without sending)
+   * Handle cancel - close without saving
    */
   const handleCancel = () => {
     resetForm()
     onClose()
   }
 
-  // If minimized, render minimized bar
+  // ========================================================================
+  // DRAG & DROP HANDLING
+  // ========================================================================
+
+  /**
+   * Start dragging - record initial mouse position offset
+   */
+  const handleDragStart = (e: React.MouseEvent) => {
+    // Ignore if clicking on buttons or inputs
+    if ((e.target as HTMLElement).closest('button, input, select, textarea')) return
+    
+    e.preventDefault()
+    setIsDragging(true)
+    onActivate()
+    
+    // Calculate offset from window's top-left corner
+    const rect = windowRef.current?.getBoundingClientRect()
+    if (rect) {
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      })
+    }
+  }
+
+  /**
+   * Handle mouse move during drag
+   * Updates window position in real-time
+   */
+  const handleDragMove = useCallback((e: MouseEvent) => {
+    if (!isDragging) return
+    
+    // Calculate new position keeping window within viewport
+    const newX = Math.max(0, Math.min(e.clientX - dragOffset.x, window.innerWidth - WINDOW_DEFAULTS.WIDTH))
+    const newY = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - 100))
+    
+    updateWindowPosition(win.id, newX, newY)
+  }, [isDragging, dragOffset, win.id, updateWindowPosition])
+
+  /**
+   * End dragging
+   */
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  // Setup/cleanup drag event listeners
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleDragMove)
+      window.addEventListener('mouseup', handleDragEnd)
+      return () => {
+        window.removeEventListener('mousemove', handleDragMove)
+        window.removeEventListener('mouseup', handleDragEnd)
+      }
+    }
+  }, [isDragging, handleDragMove, handleDragEnd])
+
+  // ========================================================================
+  // MINIMIZED STATE RENDER
+  // ========================================================================
+
+  /**
+   * Render minimized window as a compact bar
+   * Clicking restores the window
+   */
   if (win.minimized) {
-    // Calculate position for stacked minimized windows
+    // Calculate stacking offset for multiple minimized windows
     const minimizedWindows = useComposeStore.getState().windows.filter(w => w.minimized)
     const index = minimizedWindows.findIndex(w => w.id === win.id)
-    const stackOffset = index * 40 // Each bar is ~40px tall with spacing
+    const stackOffset = index * 48 // Each bar is ~48px tall with spacing
 
     return (
       <div
-        className="fixed bottom-4 right-4 w-80 rounded-lg shadow-lg cursor-pointer overflow-hidden z-50 border transition-all duration-200"
+        className="fixed right-4 w-72 rounded-xl shadow-lg cursor-pointer overflow-hidden border transition-all duration-300 hover:shadow-xl"
         style={{
           zIndex: win.zIndex,
           backgroundColor: colors.surface,
-          borderColor: colors.divider,
-          bottom: stackOffset,
+          borderColor: colors.primary + '40',
+          bottom: `${16 + stackOffset}px`,
         }}
         onClick={() => {
           onRestore()
           onActivate()
         }}
+        role="button"
+        aria-label="Restore compose window"
       >
-        <div className="p-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="flex-1 text-sm font-medium truncate">
+        {/* Minimized bar content */}
+        <div 
+          className="p-3 flex items-center gap-3"
+          style={{ 
+            background: `linear-gradient(135deg, ${colors.primary}15, transparent)` 
+          }}
+        >
+          {/* Status indicator */}
+          <div 
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: colors.primary }}
+          />
+          
+          {/* Subject */}
+          <span 
+            className="flex-1 text-sm font-medium truncate"
+            style={{ color: colors.textPrimary }}
+          >
             {form.subject || 'New Message'}
           </span>
-          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}>
+          
+          {/* Draft badge */}
+          <span 
+            className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ 
+              backgroundColor: colors.primary + '20', 
+              color: colors.primary 
+            }}
+          >
             Draft
           </span>
+          
+          {/* Restore icon */}
+          <Maximize2 
+            size={14} 
+            style={{ color: colors.textSecondary }}
+            className="flex-shrink-0"
+          />
         </div>
       </div>
     )
   }
 
-  // Full window
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Only drag if clicking on the header
-    if ((e.target as HTMLElement).closest('button')) return
-    setIsDragging(true)
-    onActivate()
-  }
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !windowRef.current) return
-    const x = e.clientX - win.position.x
-    const y = e.clientY - win.position.y
-    // Update window position
-    const rect = windowRef.current.getBoundingClientRect()
-    const newX = e.clientX - rect.width / 2
-    const newY = e.clientY - rect.height / 2
-    updateWindowPosition(win.id, newX, newY)
-  }, [isDragging, win.id, win.position.x, win.position.y, updateWindowPosition])
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-  }, [])
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
-      }
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+  // ========================================================================
+  // FULL WINDOW RENDER
+  // ========================================================================
 
   return (
     <div
       ref={windowRef}
-      className="fixed flex flex-col rounded-lg shadow-2xl overflow-hidden border transition-all duration-200"
+      className="fixed flex flex-col rounded-2xl shadow-2xl overflow-hidden border transition-shadow duration-200"
       style={{
         left: win.position.x,
         top: win.position.y,
-        width: win.size.width,
-        height: win.size.height,
+        width: WINDOW_DEFAULTS.WIDTH,
+        height: WINDOW_DEFAULTS.HEIGHT,
         zIndex: win.zIndex,
         backgroundColor: colors.surface,
-        borderColor: colors.divider,
+        borderColor: colors.border,
+        boxShadow: isDragging 
+          ? `0 25px 50px -12px rgba(0, 0, 0, 0.25)` 
+          : undefined,
       }}
       onClick={onActivate}
       role="dialog"
       aria-modal="true"
       aria-label="Compose email"
     >
-      {/* Header - Draggable */}
+      {/* ================================================================
+          DRAGGABLE HEADER
+          ================================================================ */}
       <div
-        className="flex items-center justify-between px-4 py-2 cursor-move"
-        style={{ backgroundColor: colors.surfaceHover, borderBottom: `1px solid ${colors.divider}` }}
-        onMouseDown={handleMouseDown}
+        className="flex items-center justify-between px-4 py-3 cursor-move select-none"
+        style={{ 
+          background: `linear-gradient(135deg, ${colors.primary}10, ${colors.primary}05)`,
+          borderBottom: `1px solid ${colors.divider}` 
+        }}
+        onMouseDown={handleDragStart}
       >
-        <span className="font-medium truncate" style={{ color: colors.textPrimary }}>
-          {form.subject || 'New Message'}
-        </span>
+        {/* Left: Drag handle + Title */}
+        <div className="flex items-center gap-2">
+          <GripVertical 
+            size={16} 
+            style={{ color: colors.textTertiary }}
+            className="flex-shrink-0"
+          />
+          <span 
+            className="font-semibold truncate text-sm"
+            style={{ color: colors.textPrimary }}
+          >
+            {form.subject || 'New Message'}
+          </span>
+        </div>
+
+        {/* Right: Window controls */}
         <div className="flex items-center gap-1">
+          {/* Minimize button */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               onMinimize()
             }}
-            className="p-1 rounded transition-colors"
+            className="p-2 rounded-lg transition-all hover:scale-110"
             style={{ color: colors.textSecondary }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             title="Minimize"
-            aria-label="Minimize"
+            aria-label="Minimize window"
           >
             <Minus size={16} />
           </button>
+          
+          {/* Close button */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               onClose()
             }}
-            className="p-1 rounded transition-colors"
+            className="p-2 rounded-lg transition-all hover:scale-110 hover:text-red-500"
             style={{ color: colors.textSecondary }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             title="Close"
-            aria-label="Close"
+            aria-label="Close window"
           >
             <X size={16} />
           </button>
         </div>
       </div>
 
-      {/* Form Content */}
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-6 overflow-y-auto" style={{ backgroundColor: colors.surface }}>
-        {/* To field */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>To <span className="text-red-500">*</span></label>
-          <input
-            type="text"
-            required
-            value={form.to.join(', ')}
-            onChange={(e) => handleInputChange('to', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors"
-            style={{
-              backgroundColor: colors.searchBackground,
-              border: `1px solid ${colors.border}`,
-              color: colors.textPrimary,
-            }}
-            placeholder="recipient@example.com"
-          />
-        </div>
-
-        {/* CC & BCC */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>CC</label>
+      {/* ================================================================
+          FORM CONTENT
+          ================================================================ */}
+      <form 
+        onSubmit={handleSubmit} 
+        className="flex-1 flex flex-col overflow-hidden"
+        style={{ backgroundColor: colors.surface }}
+      >
+        {/* Recipients Section */}
+        <div className="px-4 py-3 space-y-3 border-b" style={{ borderColor: colors.divider }}>
+          {/* To Field */}
+          <div className="flex items-center gap-3">
+            <label 
+              className="text-sm font-medium w-12 flex-shrink-0"
+              style={{ color: colors.textSecondary }}
+            >
+              To <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
-              value={form.cc.join(', ')}
-              onChange={(e) => handleInputChange('cc', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-              className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors"
+              required
+              value={form.to.join(', ')}
+              onChange={(e) => handleInputChange('to', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none transition-all focus:ring-2"
               style={{
-                backgroundColor: colors.searchBackground,
+                backgroundColor: colors.surfaceHover,
                 border: `1px solid ${colors.border}`,
                 color: colors.textPrimary,
               }}
-              placeholder="cc@example.com (optional)"
+              placeholder="recipient@example.com"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>BCC</label>
+
+          {/* CC & BCC Row */}
+          <div className="flex gap-4">
+            {/* CC Field */}
+            <div className="flex-1 flex items-center gap-3">
+              <label 
+                className="text-sm font-medium w-12 flex-shrink-0"
+                style={{ color: colors.textSecondary }}
+              >
+                CC
+              </label>
+              <input
+                type="text"
+                value={form.cc.join(', ')}
+                onChange={(e) => handleInputChange('cc', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                className="flex-1 px-3 py-2 rounded-lg text-sm outline-none transition-all"
+                style={{
+                  backgroundColor: colors.surfaceHover,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.textPrimary,
+                }}
+                placeholder="cc@example.com"
+              />
+            </div>
+            
+            {/* BCC Field */}
+            <div className="flex-1 flex items-center gap-3">
+              <label 
+                className="text-sm font-medium w-12 flex-shrink-0"
+                style={{ color: colors.textSecondary }}
+              >
+                BCC
+              </label>
+              <input
+                type="text"
+                value={form.bcc.join(', ')}
+                onChange={(e) => handleInputChange('bcc', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                className="flex-1 px-3 py-2 rounded-lg text-sm outline-none transition-all"
+                style={{
+                  backgroundColor: colors.surfaceHover,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.textPrimary,
+                }}
+                placeholder="bcc@example.com"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Subject & Template Section */}
+        <div className="px-4 py-3 space-y-3 border-b" style={{ borderColor: colors.divider }}>
+          {/* Subject Field */}
+          <div className="flex items-center gap-3">
+            <label 
+              className="text-sm font-medium w-24 flex-shrink-0"
+              style={{ color: colors.textSecondary }}
+            >
+              Subject <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
-              value={form.bcc.join(', ')}
-              onChange={(e) => handleInputChange('bcc', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-              className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors"
+              required
+              value={form.subject}
+              onChange={(e) => handleInputChange('subject', e.target.value)}
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none transition-all"
               style={{
-                backgroundColor: colors.searchBackground,
+                backgroundColor: colors.surfaceHover,
                 border: `1px solid ${colors.border}`,
                 color: colors.textPrimary,
               }}
-              placeholder="bcc@example.com (optional)"
+              placeholder="Email subject"
             />
+          </div>
+
+          {/* Template Selector */}
+          <div className="flex items-center gap-3">
+            <label 
+              className="text-sm font-medium w-24 flex-shrink-0"
+              style={{ color: colors.textSecondary }}
+            >
+              Template
+            </label>
+            <select
+              value={form.template || ''}
+              onChange={handleTemplateSelect}
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none transition-all cursor-pointer"
+              style={{
+                backgroundColor: colors.surfaceHover,
+                border: `1px solid ${colors.border}`,
+                color: colors.textPrimary,
+              }}
+            >
+              <option value="">Select a template (optional)</option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name} {tpl.is_system ? '(System)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Subject */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>Subject <span className="text-red-500">*</span></label>
-          <input
-            type="text"
-            required
-            value={form.subject}
-            onChange={(e) => handleInputChange('subject', e.target.value)}
-            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors"
-            style={{
-              backgroundColor: colors.searchBackground,
-              border: `1px solid ${colors.border}`,
-              color: colors.textPrimary,
-            }}
-            placeholder="Message subject"
-          />
-        </div>
-
-        {/* Template Selector */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>Email Template (Optional)</label>
-          <select
-            value={form.template || ''}
-            onChange={handleTemplateSelect}
-            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors"
-            style={{
-              backgroundColor: colors.searchBackground,
-              border: `1px solid ${colors.border}`,
-              color: colors.textPrimary,
-            }}
-          >
-            <option value="">-- Select a template --</option>
-            {templates.map((tpl) => (
-              <option key={tpl.id} value={tpl.id}>
-                {tpl.name} {(tpl as any).is_system ? '(System)' : ''}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs mt-1" style={{ color: colors.textTertiary }}>
-            Apply a pre-designed email template with company branding.
-          </p>
-        </div>
-
-        {/* Template Selector */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>Template (Optional)</label>
-          <select
-            value={form.template || ''}
-            onChange={(e) => handleInputChange('template', e.target.value)}
-            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors"
-            style={{
-              backgroundColor: colors.searchBackground,
-              border: `1px solid ${colors.border}`,
-              color: colors.textPrimary,
-            }}
-          >
-            <option value="">Select a template...</option>
-            <option value="welcome">Welcome Email</option>
-            <option value="quote">Quote Request</option>
-            <option value="followup">Follow-up</option>
-            <option value="thank-you">Thank You</option>
-            <option value="invoice">Invoice</option>
-          </select>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 flex flex-col min-h-0 mb-4">
-          <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>Message <span className="text-red-500">*</span></label>
+        {/* Message Body */}
+        <div className="flex-1 px-4 py-3 overflow-hidden">
           <textarea
             required
             value={form.body}
             onChange={(e) => handleInputChange('body', e.target.value)}
-            className="flex-1 w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 transition-colors resize-none"
+            className="w-full h-full px-3 py-2 rounded-lg text-sm outline-none resize-none leading-relaxed"
             style={{
-              backgroundColor: colors.searchBackground,
+              backgroundColor: colors.surfaceHover,
               border: `1px solid ${colors.border}`,
               color: colors.textPrimary,
-              fontFamily: 'inherit',
-              minHeight: '200px',
             }}
-            placeholder="Type your message here..."
+            placeholder="Write your message here..."
           />
         </div>
 
-        {/* Attachments */}
+        {/* Attachments Section */}
         {form.attachments.length > 0 && (
-          <div className="mb-4 p-3 rounded-md" style={{ backgroundColor: colors.searchBackground }}>
-            <div className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Attachments ({form.attachments.length})</div>
-            <div className="space-y-2">
+          <div 
+            className="px-4 py-3 border-t"
+            style={{ borderColor: colors.divider }}
+          >
+            <div 
+              className="text-xs font-medium mb-2 uppercase tracking-wide"
+              style={{ color: colors.textTertiary }}
+            >
+              Attachments ({form.attachments.length})
+            </div>
+            <div className="flex flex-wrap gap-2">
               {form.attachments.map((attachment) => (
                 <div
                   key={attachment.id}
-                  className="flex items-center justify-between p-2 rounded border transition-colors"
-                  style={{ backgroundColor: colors.surface, borderColor: colors.divider }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm group"
+                  style={{ 
+                    backgroundColor: colors.surfaceHover,
+                    border: `1px solid ${colors.border}`
+                  }}
                 >
-                  <div className="flex items-center gap-2">
-                    {/* Paperclip icon - SVG */}
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={colors.textTertiary} strokeWidth="2">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                    </svg>
-                    <span className="text-sm truncate max-w-xs" style={{ color: colors.textPrimary }}>
-                      {attachment.name}
-                    </span>
-                    <span className="text-xs" style={{ color: colors.textTertiary }}>({formatFileSize(attachment.size)})</span>
-                  </div>
+                  <span className="truncate max-w-[120px]" style={{ color: colors.textPrimary }}>
+                    {attachment.name}
+                  </span>
+                  <span className="text-xs" style={{ color: colors.textTertiary }}>
+                    ({formatFileSize(attachment.size)})
+                  </span>
                   <button
                     type="button"
                     onClick={() => removeAttachment(attachment.id)}
-                    className="p-1 rounded transition-colors"
-                    style={{ color: colors.textTertiary }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = colors.accent}
-                    onMouseLeave={(e) => e.currentTarget.style.color = colors.textTertiary}
+                    className="opacity-50 hover:opacity-100 transition-opacity"
+                    style={{ color: colors.textSecondary }}
+                    aria-label={`Remove ${attachment.name}`}
                   >
                     <X size={14} />
                   </button>
@@ -475,101 +680,123 @@ function ComposeWindow({ win, onClose, onMinimize, onRestore, onActivate, templa
           </div>
         )}
 
-        {/* Attachment button */}
-        <div className="flex items-center gap-4 mb-4">
-          <input
-            type="file"
-            multiple
-            onChange={(e) => handleFileSelect(e.target.files)}
-            className="hidden"
-            id={`file-upload-${win.id}`}
-          />
-          <label
-            htmlFor={`file-upload-${win.id}`}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md border transition-colors cursor-pointer"
-            style={{
-              borderColor: colors.border,
-              color: colors.textSecondary,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = colors.surfaceHover
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-          >
-            {/* Paperclip icon */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-            Add Attachments
-          </label>
-          <span className="text-xs" style={{ color: colors.textTertiary }}>
-            {form.attachments.length > 0
-              ? `${form.attachments.length} file(s) attached`
-              : ''}
-          </span>
-        </div>
+        {/* Footer Actions */}
+        <div 
+          className="flex items-center justify-between px-4 py-3 border-t"
+          style={{ 
+            borderColor: colors.divider,
+            backgroundColor: colors.background
+          }}
+        >
+          {/* Left: Attachment button */}
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              multiple
+              onChange={(e) => handleFileSelect(e.target.files)}
+              className="hidden"
+              id={`file-upload-${win.id}`}
+            />
+            <label
+              htmlFor={`file-upload-${win.id}`}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border cursor-pointer transition-all hover:bg-opacity-80"
+              style={{
+                borderColor: colors.border,
+                color: colors.textSecondary,
+                backgroundColor: colors.surfaceHover,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+              Attach
+            </label>
+            
+            {/* Status text */}
+            {savingDraft && (
+              <span className="text-xs" style={{ color: colors.textTertiary }}>
+                Saving...
+              </span>
+            )}
+          </div>
 
-        {/* Action buttons */}
-        <div className="flex justify-end gap-3 pt-4 border-t" style={{ borderColor: colors.divider }}>
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={savingDraft || !form.subject}
-            className="px-4 py-2 text-sm rounded-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: 'transparent',
-              border: `1px solid ${colors.border}`,
-              color: colors.textSecondary,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            {savingDraft ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            type="submit"
-            disabled={sending || !form.to.length || !form.subject}
-            className="px-6 py-2 text-sm text-white rounded-md font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: (sending || !form.to.length || !form.subject) ? colors.textTertiary : colors.primary,
-            }}
-          >
-            {sending ? 'Sending...' : 'Send'}
-          </button>
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-4 py-2 text-sm rounded-md transition-colors"
-            style={{
-              backgroundColor: 'transparent',
-              color: colors.textSecondary,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            Cancel
-          </button>
+          {/* Right: Action buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={savingDraft || !form.subject}
+              className="px-4 py-2 text-sm rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: colors.surfaceHover,
+                color: colors.textSecondary,
+              }}
+            >
+              Save Draft
+            </button>
+            
+            <button
+              type="submit"
+              disabled={sending || !form.to.length || !form.subject}
+              className="px-5 py-2 text-sm text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg"
+              style={{
+                backgroundColor: (sending || !form.to.length || !form.subject) 
+                  ? colors.textTertiary 
+                  : colors.primary,
+              }}
+            >
+              {sending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
         </div>
       </form>
     </div>
   )
 }
 
+// ============================================================================
+// COMPOSE WINDOW MANAGER COMPONENT
+// ============================================================================
+
 /**
  * ComposeWindowManager Component
- *
- * Renders all active compose windows sorted by z-index.
- * Also renders minimized windows as bars at bottom-right.
+ * 
+ * Parent component that manages all active compose windows.
+ * Handles:
+ * - Rendering windows sorted by z-index
+ * - Fetching email templates
+ * - Coordinating window state with the store
+ * 
+ * Usage:
+ * ```tsx
+ * <ComposeWindowManager />
+ * ```
  */
 export function ComposeWindowManager() {
-  const { windows, closeCompose, minimizeCompose, restoreCompose, bringToFront } = useComposeStore()
+  // ========================================================================
+  // STATE & HOOKS
+  // ========================================================================
+  
+  /** Window state from Zustand store */
+  const { 
+    windows, 
+    closeCompose, 
+    minimizeCompose, 
+    restoreCompose, 
+    bringToFront 
+  } = useComposeStore()
 
+  /** Email templates from database */
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(true)
 
-  // Fetch templates on mount
+  // ========================================================================
+  // EFFECTS
+  // ========================================================================
+
+  /**
+   * Fetch email templates on mount
+   */
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
@@ -577,6 +804,7 @@ export function ComposeWindowManager() {
           .from('email_templates')
           .select('*')
           .order('name')
+        
         if (!error && data) {
           setTemplates(data)
         }
@@ -589,7 +817,13 @@ export function ComposeWindowManager() {
     fetchTemplates()
   }, [])
 
-  // Sort windows by z-index so higher ones render last (on top)
+  // ========================================================================
+  // RENDER
+  // ========================================================================
+
+  /**
+   * Sort windows by z-index so higher ones render last (on top)
+   */
   const sortedWindows = useMemo(
     () => [...windows].sort((a, b) => a.zIndex - b.zIndex),
     [windows]
