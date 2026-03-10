@@ -3,41 +3,33 @@
  * COMPOSE MODAL
  * ============================================================================
  * 
- * A modal dialog for composing emails. This component provides a clean,
- * user-friendly interface for writing and sending emails with features like:
+ * A modal dialog for composing emails with a clean, Gmail-inspired design.
  * 
  * Features:
  * - Recipient management with chip-style tags
  * - CC/BCC toggle fields
  * - Subject line with validation
- * - Rich text body area
- * - File attachments with drag & drop support
- * - Draft auto-save functionality
+ * - Text body area
+ * - File attachments
+ * - Draft auto-save
  * - Minimize/expand window
- * - Form validation before send
- * 
- * The modal can be used in two modes:
- * 1. New email composition
- * 2. Reply to existing email (via replyToId prop)
+ * - Full dark mode support
  * 
  * @module features/compose/ComposeModal
- * @author Sternmed Email Team
- * @version 2.0.0
+ * @version 2.1.0
  * ============================================================================
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { 
-  X,              // Close icon
-  Paperclip,      // Attachment icon
-  Send,           // Send button icon
-  Save,           // Save draft icon
-  Minimize2,      // Minimize icon
-  Maximize2,      // Expand icon
-  FileText,       // File type icon
-  Mail,           // Email icon
-  User,           // User icon for recipients
-  ChevronDown,    // Expand/collapse indicator
+  X,
+  Paperclip,
+  Send,
+  Save,
+  Minimize2,
+  Maximize2,
+  FileText,
+  User,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
@@ -47,17 +39,14 @@ import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
 
 // ============================================================================
-// TYPES & INTERFACES
+// TYPES
 // ============================================================================
 
-/**
- * Props for the ComposeModal component
- */
 interface ComposeModalProps {
-  isOpen: boolean           // Whether the modal is visible
-  onClose: () => void       // Callback when modal is closed
-  replyToId?: string        // ID of email being replied to (optional)
-  initialData?: {           // Pre-filled data (for drafts/replies)
+  isOpen: boolean
+  onClose: () => void
+  replyToId?: string
+  initialData?: {
     to?: string[]
     cc?: string[]
     bcc?: string[]
@@ -66,63 +55,44 @@ interface ComposeModalProps {
   }
 }
 
-/**
- * Attachment file structure
- */
 interface Attachment {
-  id: string              // Unique identifier
-  name: string            // Original filename
-  size: number            // File size in bytes
-  type: string            // MIME type
-  file: File              // The actual File object
-  cloudinaryUrl?: string  // URL after upload (if already uploaded)
+  id: string
+  name: string
+  size: number
+  type: string
+  file: File
+  cloudinaryUrl?: string
 }
 
-/**
- * Form field names for focus tracking
- */
 type FormField = 'to' | 'cc' | 'bcc' | 'subject' | 'body' | null
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-/** File upload constraints */
 const FILE_CONSTRAINTS = {
-  MAX_FILE_SIZE: 10 * 1024 * 1024,      // 10MB per file
-  MAX_TOTAL_SIZE: 100 * 1024 * 1024,    // 100MB total
+  MAX_FILE_SIZE: 10 * 1024 * 1024,
+  MAX_TOTAL_SIZE: 100 * 1024 * 1024,
 } as const
 
-/** Modal dimensions */
 const MODAL_DIMENSIONS = {
-  WIDTH_EXPANDED: 680,
-  WIDTH_MINIMIZED: 400,
-  HEIGHT_EXPANDED: 580,
+  WIDTH_EXPANDED: 640,
+  WIDTH_MINIMIZED: 380,
+  HEIGHT_EXPANDED: 540,
 } as const
 
-/** Auto-save delay in milliseconds */
 const AUTOSAVE_DELAY = 2000
 
 // ============================================================================
-// HELPER FUNCTIONS
+// HELPERS
 // ============================================================================
 
-/**
- * Formats file size to human-readable string
- * @param bytes - File size in bytes
- * @returns Formatted string (e.g., "1.5 MB")
- */
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/**
- * Validates an email address format
- * @param email - Email string to validate
- * @returns True if valid email format
- */
 const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
@@ -132,18 +102,6 @@ const isValidEmail = (email: string): boolean => {
 // MAIN COMPONENT
 // ============================================================================
 
-/**
- * ComposeModal Component
- * 
- * A full-featured email composition modal with:
- * - Chip-style recipient tags
- * - Collapsible CC/BCC fields
- * - File attachments
- * - Draft auto-save
- * - Minimize/expand functionality
- * 
- * @param props - Component props
- */
 export default function ComposeModal({ 
   isOpen, 
   onClose, 
@@ -151,61 +109,46 @@ export default function ComposeModal({
   initialData 
 }: ComposeModalProps) {
   // ========================================================================
-  // STATE MANAGEMENT
+  // STATE
   // ========================================================================
   
-  /** Authentication store */
   const { emailAliasId, user } = useAuthStore()
   const { colors } = useTheme()
   const { confirm, confirmation } = useConfirmationModal()
 
-  // ------------------------------------------------------------------------
-  // Form State
-  // ------------------------------------------------------------------------
-  
-  /** Recipient lists */
+  // Form state
   const [to, setTo] = useState<string[]>(initialData?.to || [])
   const [cc, setCc] = useState<string[]>(initialData?.cc || [])
   const [bcc, setBcc] = useState<string[]>(initialData?.bcc || [])
-  
-  /** Email content */
   const [subject, setSubject] = useState(initialData?.subject || '')
   const [body, setBody] = useState(initialData?.body || '')
-  
-  /** Attachments */
   const [attachments, setAttachments] = useState<Attachment[]>([])
   
-  /** UI State */
+  // UI state
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [focusedField, setFocusedField] = useState<FormField>(null)
   
-  /** Input values for recipient fields (for typing before adding) */
+  // Input values
   const [toInput, setToInput] = useState('')
   const [ccInput, setCcInput] = useState('')
   const [bccInput, setBccInput] = useState('')
   
-  /** Loading states */
+  // Loading states
   const [sending, setSending] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [draftId, setDraftId] = useState<string | null>(null)
 
-  // ------------------------------------------------------------------------
   // Refs
-  // ------------------------------------------------------------------------
-  
   const fileInputRef = useRef<HTMLInputElement>(null)
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const toInputRef = useRef<HTMLInputElement>(null)
 
   // ========================================================================
   // EFFECTS
   // ========================================================================
 
-  /**
-   * Load email for reply when replyToId is provided
-   */
+  // Load reply email
   useEffect(() => {
     if (replyToId && emailAliasId) {
       const loadReplyTo = async () => {
@@ -216,12 +159,7 @@ export default function ComposeModal({
           if (email) {
             setTo([email.senderEmail])
             setSubject(`Re: ${email.subject || ''}`)
-            
-            // Format quoted reply
-            const replyBody = `\n\n${'─'.repeat(50)}\n` +
-              `From: ${email.senderName || email.senderEmail}\n` +
-              `Date: ${new Date(email.receivedAt).toLocaleString()}\n` +
-              `${'─'.repeat(50)}\n\n${email.bodyText || ''}`
+            const replyBody = `\n\n${'─'.repeat(40)}\nFrom: ${email.senderName || email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n${'─'.repeat(40)}\n\n${email.bodyText || ''}`
             setBody(replyBody)
           }
         } catch (error) {
@@ -232,16 +170,12 @@ export default function ComposeModal({
     }
   }, [replyToId, emailAliasId])
 
-  /**
-   * Auto-save draft when content changes
-   */
+  // Auto-save
   useEffect(() => {
-    // Clear existing timer
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current)
     }
 
-    // Only auto-save if there's content
     if (subject || body) {
       autosaveTimerRef.current = setTimeout(autosaveDraft, AUTOSAVE_DELAY)
     }
@@ -254,13 +188,9 @@ export default function ComposeModal({
   }, [to, cc, bcc, subject, body, attachments])
 
   // ========================================================================
-  // RECIPIENT MANAGEMENT
+  // RECIPIENT HANDLERS
   // ========================================================================
 
-  /**
-   * Adds a recipient to the specified list
-   * Validates email format before adding
-   */
   const addRecipient = useCallback((
     value: string,
     list: string[],
@@ -268,18 +198,12 @@ export default function ComposeModal({
     setInput: React.Dispatch<React.SetStateAction<string>>
   ) => {
     const trimmed = value.trim()
-    
-    // Validate email format
     if (trimmed && isValidEmail(trimmed) && !list.includes(trimmed)) {
       setList([...list, trimmed])
       setInput('')
     }
   }, [])
 
-  /**
-   * Handles keyboard events in recipient input fields
-   * Supports: Enter, comma, semicolon to add; Backspace to remove last
-   */
   const handleRecipientKeyDown = useCallback((
     e: React.KeyboardEvent<HTMLInputElement>,
     value: string,
@@ -291,14 +215,10 @@ export default function ComposeModal({
       e.preventDefault()
       addRecipient(value, list, setList, setInput)
     } else if (e.key === 'Backspace' && !value && list.length > 0) {
-      // Remove last recipient on backspace when input is empty
       setList(list.slice(0, -1))
     }
   }, [addRecipient])
 
-  /**
-   * Removes a recipient from the list
-   */
   const removeRecipient = useCallback((
     email: string,
     list: string[],
@@ -308,13 +228,9 @@ export default function ComposeModal({
   }, [])
 
   // ========================================================================
-  // FILE HANDLING
+  // FILE HANDLERS
   // ========================================================================
 
-  /**
-   * Handles file selection from input or drag-drop
-   * Validates file size constraints
-   */
   const handleFileSelect = useCallback((files: FileList | null) => {
     if (!files) return
 
@@ -322,13 +238,11 @@ export default function ComposeModal({
     let totalSize = attachments.reduce((sum, att) => sum + att.size, 0)
 
     for (const file of Array.from(files)) {
-      // Check individual file size
       if (file.size > FILE_CONSTRAINTS.MAX_FILE_SIZE) {
         alert(`File "${file.name}" exceeds 10MB limit`)
         continue
       }
 
-      // Check total size
       if (totalSize + file.size > FILE_CONSTRAINTS.MAX_TOTAL_SIZE) {
         alert('Total attachment size exceeds 100MB limit')
         break
@@ -349,60 +263,39 @@ export default function ComposeModal({
     }
   }, [attachments])
 
-  /**
-   * Removes an attachment from the list
-   */
   const removeAttachment = useCallback((id: string) => {
     setAttachments(prev => prev.filter(a => a.id !== id))
   }, [])
 
   // ========================================================================
-  // DRAFT MANAGEMENT
+  // DRAFT & SEND HANDLERS
   // ========================================================================
 
-  /**
-   * Auto-saves the current email as a draft
-   * Called automatically after content changes
-   */
   const autosaveDraft = useCallback(async () => {
     if (!emailAliasId || (!subject && !body)) return
 
     setSavingDraft(true)
 
     try {
-      // Upload new attachments
       const uploadedAttachments = await Promise.all(
         attachments
           .filter(a => !a.cloudinaryUrl)
           .map(async (attachment) => {
             const url = await storageService.uploadFile(attachment.file, 'email_attachments')
-            return {
-              filename: attachment.name,
-              url,
-              type: attachment.type,
-              size: attachment.size,
-            }
+            return { filename: attachment.name, url, type: attachment.type, size: attachment.size }
           })
       )
 
-      // Combine existing and new attachments
       const allAttachments = [
-        ...attachments
-          .filter(a => a.cloudinaryUrl)
-          .map(a => ({
-            filename: a.name,
-            url: a.cloudinaryUrl!,
-            type: a.type,
-            size: a.size,
-          })),
+        ...attachments.filter(a => a.cloudinaryUrl).map(a => ({
+          filename: a.name, url: a.cloudinaryUrl!, type: a.type, size: a.size,
+        })),
         ...uploadedAttachments,
       ]
 
       const draftData = {
         recipientEmail: to[0] || '',
-        cc,
-        bcc,
-        subject,
+        cc, bcc, subject,
         bodyText: body,
         bodyHtml: body.replace(/\n/g, '<br>'),
         attachments: allAttachments,
@@ -421,16 +314,7 @@ export default function ComposeModal({
     }
   }, [emailAliasId, subject, body, attachments, to, cc, bcc, draftId])
 
-  // ========================================================================
-  // SEND EMAIL
-  // ========================================================================
-
-  /**
-   * Validates and sends the email
-   * Shows confirmation dialog before sending
-   */
   const handleSend = useCallback(async () => {
-    // Validation checks
     if (!emailAliasId) {
       alert('No email alias configured')
       return
@@ -446,7 +330,6 @@ export default function ComposeModal({
       return
     }
 
-    // Confirm before sending
     const result = await confirm({
       title: 'Send Email',
       message: `Send this email to ${to.join(', ')}?`,
@@ -459,49 +342,32 @@ export default function ComposeModal({
     setSending(true)
 
     try {
-      // Upload any new attachments
-      const existing = attachments
-        .filter(a => a.cloudinaryUrl)
-        .map(a => ({
-          filename: a.name,
-          url: a.cloudinaryUrl!,
-          type: a.type,
-          size: a.size,
-        }))
+      const existing = attachments.filter(a => a.cloudinaryUrl).map(a => ({
+        filename: a.name, url: a.cloudinaryUrl!, type: a.type, size: a.size,
+      }))
 
       const toUpload = attachments.filter(a => !a.cloudinaryUrl)
       const uploaded = await Promise.all(
         toUpload.map(async (attachment) => {
           const url = await storageService.uploadFile(attachment.file, 'email_attachments')
-          return {
-            filename: attachment.name,
-            url,
-            type: attachment.type,
-            size: attachment.size,
-          }
+          return { filename: attachment.name, url, type: attachment.type, size: attachment.size }
         })
       )
 
       const allAttachments = [...existing, ...uploaded]
 
-      // Send the email
       await emailOutboundService.sendEmail(emailAliasId, {
         aliasId: emailAliasId,
-        recipientEmail: to[0],
-        cc,
-        bcc,
-        subject,
+        recipientEmail: to[0], cc, bcc, subject,
         bodyText: body,
         bodyHtml: body.replace(/\n/g, '<br>'),
         attachments: allAttachments,
       })
 
-      // Delete draft if exists
       if (draftId) {
         await emailOutboundService.softDelete(draftId)
       }
 
-      // Reset and close
       resetForm()
       onClose()
       alert('Email sent successfully!')
@@ -517,9 +383,6 @@ export default function ComposeModal({
   // FORM MANAGEMENT
   // ========================================================================
 
-  /**
-   * Resets all form fields to initial state
-   */
   const resetForm = useCallback(() => {
     setTo([])
     setCc([])
@@ -534,9 +397,6 @@ export default function ComposeModal({
     setBccInput('')
   }, [])
 
-  /**
-   * Handles modal close with unsaved changes check
-   */
   const handleClose = useCallback(async () => {
     if (subject || body || attachments.length > 0) {
       const result = await confirm({
@@ -555,9 +415,6 @@ export default function ComposeModal({
   // RENDER HELPERS
   // ========================================================================
 
-  /**
-   * Renders a recipient input field with chips
-   */
   const renderRecipientField = (
     label: string,
     recipients: string[],
@@ -568,32 +425,28 @@ export default function ComposeModal({
     fieldName: FormField
   ) => (
     <div className="flex items-start gap-3">
-      {/* Label */}
       <label 
-        className="text-sm font-medium pt-2.5 min-w-[50px] flex-shrink-0"
+        className="text-sm font-medium pt-2 min-w-[50px] flex-shrink-0"
         style={{ color: colors.textSecondary }}
       >
         {label}
       </label>
       
-      {/* Input container with chips */}
       <div 
-        className={`flex-1 flex flex-wrap gap-1.5 p-2 rounded-xl transition-all min-h-[42px] ${
+        className={`flex-1 flex flex-wrap gap-1.5 p-2 rounded-lg transition-all min-h-[40px] ${
           focusedField === fieldName ? 'ring-2' : ''
         }`}
         style={{ 
           backgroundColor: colors.surfaceHover,
           border: `1px solid ${focusedField === fieldName ? colors.primary : colors.border}`,
-          boxShadow: focusedField === fieldName ? `0 0 0 3px ${colors.primary}20` : undefined
         }}
       >
-        {/* Recipient chips */}
         {recipients.map((recipient) => (
           <span
             key={recipient}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium transition-all hover:shadow-sm"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm"
             style={{ 
-              backgroundColor: colors.primary + '15', 
+              backgroundColor: colors.primary + '20', 
               color: colors.primary 
             }}
           >
@@ -602,15 +455,13 @@ export default function ComposeModal({
             <button
               type="button"
               onClick={() => removeRecipient(recipient, recipients, setRecipients)}
-              className="ml-1 hover:opacity-70 transition-opacity"
-              aria-label={`Remove ${recipient}`}
+              className="ml-1 hover:opacity-70"
             >
               ×
             </button>
           </span>
         ))}
         
-        {/* Text input */}
         <input
           type="text"
           value={inputValue}
@@ -633,12 +484,10 @@ export default function ComposeModal({
   // MAIN RENDER
   // ========================================================================
 
-  /** Don't render if modal is closed */
   if (!isOpen) return null
 
   return (
     <>
-      {/* Confirmation Modal */}
       {confirmation && (
         <ConfirmationModal
           isOpen={confirmation.isOpen}
@@ -654,13 +503,13 @@ export default function ComposeModal({
 
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
         style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
         onClick={(e) => e.target === e.currentTarget && handleClose()}
       >
-        {/* Modal Container */}
+        {/* Modal */}
         <div
-          className="flex flex-col rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 animate-in zoom-in-95"
+          className="flex flex-col rounded-xl shadow-2xl overflow-hidden transition-all duration-200"
           style={{
             backgroundColor: colors.surface,
             border: `1px solid ${colors.border}`,
@@ -669,94 +518,54 @@ export default function ComposeModal({
             maxHeight: '90vh',
           }}
           onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="compose-modal-title"
         >
-          {/* ============================================================
-              HEADER
-              ============================================================ */}
+          {/* Header */}
           <div
-            className="flex items-center justify-between px-5 py-3.5"
-            style={{ 
-              background: `linear-gradient(135deg, ${colors.primary}12, ${colors.primary}05)`,
-              borderBottom: `1px solid ${colors.divider}` 
-            }}
+            className="flex items-center justify-between px-4 py-3 border-b"
+            style={{ borderColor: colors.divider }}
           >
-            {/* Left: Icon + Title */}
-            <div className="flex items-center gap-3">
-              <div 
-                className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: colors.primary + '15' }}
-              >
-                <Mail size={18} style={{ color: colors.primary }} />
-              </div>
-              <div>
-                <h2 
-                  id="compose-modal-title"
-                  className="font-semibold text-base"
-                  style={{ color: colors.textPrimary }}
-                >
-                  {draftId ? 'Edit Draft' : 'New Message'}
-                </h2>
-                <p className="text-xs" style={{ color: colors.textTertiary }}>
-                  From: {user?.email}
-                </p>
-              </div>
-            </div>
-
-            {/* Right: Window controls */}
+            <span 
+              className="font-medium text-sm"
+              style={{ color: colors.textPrimary }}
+            >
+              {draftId ? 'Edit Draft' : 'New Message'}
+            </span>
+            
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsMinimized(!isMinimized)}
-                className="p-2 rounded-lg transition-all hover:bg-black/5"
+                className="p-2 rounded-lg transition-colors"
                 style={{ color: colors.textSecondary }}
                 title={isMinimized ? 'Expand' : 'Minimize'}
-                aria-label={isMinimized ? 'Expand window' : 'Minimize window'}
               >
                 {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
               </button>
               <button
                 onClick={handleClose}
-                className="p-2 rounded-lg transition-all hover:bg-red-50 hover:text-red-500"
+                className="p-2 rounded-lg transition-colors hover:text-red-500"
                 style={{ color: colors.textSecondary }}
-                aria-label="Close window"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
           </div>
 
-          {/* ============================================================
-              FORM CONTENT (Hidden when minimized)
-              ============================================================ */}
+          {/* Form */}
           {!isMinimized && (
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Recipients Section */}
-              <div className="px-5 pt-4 space-y-3">
-                {/* To Field with CC/BCC toggles */}
+              {/* Recipients */}
+              <div className="px-4 pt-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  {renderRecipientField(
-                    'To',
-                    to,
-                    setTo,
-                    toInput,
-                    setToInput,
-                    'recipient@email.com',
-                    'to'
-                  )}
+                  {renderRecipientField('To', to, setTo, toInput, setToInput, 'recipient@email.com', 'to')}
                   
-                  {/* CC/BCC Toggle Buttons */}
                   <div className="flex gap-1 pt-2 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowCc(!showCc)}
-                      className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                        showCc ? 'shadow-sm' : ''
-                      }`}
+                      className="text-xs px-2 py-1 rounded transition-colors"
                       style={{ 
                         color: showCc ? colors.primary : colors.textTertiary,
-                        backgroundColor: showCc ? colors.primary + '15' : colors.surfaceHover
+                        backgroundColor: showCc ? colors.primary + '20' : colors.surfaceHover
                       }}
                     >
                       Cc
@@ -764,12 +573,10 @@ export default function ComposeModal({
                     <button
                       type="button"
                       onClick={() => setShowBcc(!showBcc)}
-                      className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                        showBcc ? 'shadow-sm' : ''
-                      }`}
+                      className="text-xs px-2 py-1 rounded transition-colors"
                       style={{ 
                         color: showBcc ? colors.primary : colors.textTertiary,
-                        backgroundColor: showBcc ? colors.primary + '15' : colors.surfaceHover
+                        backgroundColor: showBcc ? colors.primary + '20' : colors.surfaceHover
                       }}
                     >
                       Bcc
@@ -777,37 +584,10 @@ export default function ComposeModal({
                   </div>
                 </div>
 
-                {/* CC Field (Collapsible) */}
-                {showCc && (
-                  <div className="animate-in slide-in-from-top-2 duration-200">
-                    {renderRecipientField(
-                      'Cc',
-                      cc,
-                      setCc,
-                      ccInput,
-                      setCcInput,
-                      'cc@email.com',
-                      'cc'
-                    )}
-                  </div>
-                )}
+                {showCc && renderRecipientField('Cc', cc, setCc, ccInput, setCcInput, 'cc@email.com', 'cc')}
+                {showBcc && renderRecipientField('Bcc', bcc, setBcc, bccInput, setBccInput, 'bcc@email.com', 'bcc')}
 
-                {/* BCC Field (Collapsible) */}
-                {showBcc && (
-                  <div className="animate-in slide-in-from-top-2 duration-200">
-                    {renderRecipientField(
-                      'Bcc',
-                      bcc,
-                      setBcc,
-                      bccInput,
-                      setBccInput,
-                      'bcc@email.com',
-                      'bcc'
-                    )}
-                  </div>
-                )}
-
-                {/* Subject Field */}
+                {/* Subject */}
                 <div className="flex items-center gap-3">
                   <label 
                     className="text-sm font-medium min-w-[50px] flex-shrink-0"
@@ -820,12 +600,11 @@ export default function ComposeModal({
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     placeholder="Email subject"
-                    className="flex-1 px-4 py-2.5 rounded-xl outline-none text-sm transition-all"
+                    className="flex-1 px-3 py-2 rounded-lg outline-none text-sm"
                     style={{
                       backgroundColor: colors.surfaceHover,
                       border: `1px solid ${focusedField === 'subject' ? colors.primary : colors.border}`,
                       color: colors.textPrimary,
-                      boxShadow: focusedField === 'subject' ? `0 0 0 3px ${colors.primary}20` : undefined
                     }}
                     onFocus={() => setFocusedField('subject')}
                     onBlur={() => setFocusedField(null)}
@@ -833,64 +612,47 @@ export default function ComposeModal({
                 </div>
               </div>
 
-              {/* Body Section */}
-              <div className="flex-1 px-5 py-3 overflow-hidden">
+              {/* Body */}
+              <div className="flex-1 px-4 py-3 overflow-hidden">
                 <textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   placeholder="Write your message here..."
-                  className="w-full h-full px-4 py-3 rounded-xl resize-none outline-none text-sm leading-relaxed transition-all"
+                  className="w-full h-full px-3 py-2 rounded-lg resize-none outline-none text-sm leading-relaxed"
                   style={{
                     backgroundColor: colors.surfaceHover,
                     border: `1px solid ${focusedField === 'body' ? colors.primary : colors.border}`,
                     color: colors.textPrimary,
-                    boxShadow: focusedField === 'body' ? `0 0 0 3px ${colors.primary}20` : undefined
                   }}
                   onFocus={() => setFocusedField('body')}
                   onBlur={() => setFocusedField(null)}
                 />
               </div>
 
-              {/* Attachments Section */}
+              {/* Attachments */}
               {attachments.length > 0 && (
-                <div 
-                  className="px-5 py-2.5 border-t"
-                  style={{ borderColor: colors.divider }}
-                >
-                  <div 
-                    className="text-xs font-medium mb-2 uppercase tracking-wide"
-                    style={{ color: colors.textTertiary }}
-                  >
-                    Attachments ({attachments.length})
-                  </div>
+                <div className="px-4 py-2 border-t" style={{ borderColor: colors.divider }}>
                   <div className="flex flex-wrap gap-2">
                     {attachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm group"
+                        className="inline-flex items-center gap-2 px-2 py-1 rounded text-sm"
                         style={{ 
                           backgroundColor: colors.surfaceHover,
                           border: `1px solid ${colors.border}`
                         }}
                       >
                         <FileText size={14} style={{ color: colors.primary }} />
-                        <span 
-                          className="truncate max-w-[120px]"
-                          style={{ color: colors.textPrimary }}
-                        >
+                        <span className="truncate max-w-[100px]" style={{ color: colors.textPrimary }}>
                           {attachment.name}
                         </span>
-                        <span 
-                          className="text-xs"
-                          style={{ color: colors.textTertiary }}
-                        >
+                        <span className="text-xs" style={{ color: colors.textTertiary }}>
                           ({formatFileSize(attachment.size)})
                         </span>
                         <button
                           onClick={() => removeAttachment(attachment.id)}
-                          className="opacity-50 hover:opacity-100 transition-opacity"
+                          className="hover:opacity-70"
                           style={{ color: colors.textSecondary }}
-                          aria-label={`Remove ${attachment.name}`}
                         >
                           <X size={14} />
                         </button>
@@ -900,17 +662,12 @@ export default function ComposeModal({
                 </div>
               )}
 
-              {/* Footer Actions */}
+              {/* Footer */}
               <div
-                className="flex items-center justify-between px-5 py-3 border-t"
-                style={{ 
-                  borderColor: colors.divider,
-                  backgroundColor: colors.background
-                }}
+                className="flex items-center justify-between px-4 py-3 border-t"
+                style={{ borderColor: colors.divider }}
               >
-                {/* Left: Status + Attach */}
-                <div className="flex items-center gap-3">
-                  {/* Hidden file input */}
+                <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -919,57 +676,41 @@ export default function ComposeModal({
                     className="hidden"
                   />
 
-                  {/* Attach button */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2.5 rounded-xl transition-all hover:scale-105"
-                    style={{ 
-                      color: colors.textSecondary,
-                      backgroundColor: colors.surfaceHover
-                    }}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ color: colors.textSecondary }}
                     title="Attach files"
-                    aria-label="Attach files"
                   >
                     <Paperclip size={18} />
                   </button>
 
-                  {/* Save draft button */}
                   <button
                     type="button"
                     onClick={autosaveDraft}
                     disabled={savingDraft || !subject}
-                    className="px-3 py-1.5 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2 text-sm"
-                    style={{ 
-                      color: colors.textSecondary,
-                      backgroundColor: colors.surfaceHover
-                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 disabled:opacity-50"
+                    style={{ color: colors.textSecondary }}
                   >
                     <Save size={14} />
-                    <span>Save</span>
+                    Save
                   </button>
 
-                  {/* Status text */}
-                  <div className="text-xs" style={{ color: colors.textTertiary }}>
+                  <span className="text-xs" style={{ color: colors.textTertiary }}>
                     {savingDraft && 'Saving...'}
                     {draftId && !savingDraft && 'Draft saved'}
-                  </div>
+                  </span>
                 </div>
 
-                {/* Right: Send button */}
                 <button
                   onClick={handleSend}
                   disabled={sending || to.length === 0 || !subject}
-                  className="px-5 py-2.5 rounded-xl flex items-center gap-2 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:scale-105"
-                  style={{
-                    backgroundColor: sending || to.length === 0 || !subject 
-                      ? colors.textTertiary 
-                      : colors.primary,
-                    color: 'white',
-                  }}
+                  className="px-4 py-2 rounded-lg text-white text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                  style={{ backgroundColor: colors.primary }}
                 >
                   <Send size={16} />
-                  <span>{sending ? 'Sending...' : 'Send'}</span>
+                  {sending ? 'Sending...' : 'Send'}
                 </button>
               </div>
             </div>
