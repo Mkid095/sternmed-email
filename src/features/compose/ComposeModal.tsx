@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Paperclip, Send, Save, Trash2, Minimize2, Maximize2 } from 'lucide-react'
+import { X, Paperclip, Send, Save, Trash2, Minimize2, Maximize2, ChevronDown, ChevronUp, FileText, Sparkles } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
 import { storageService } from '../../services/storage.service'
@@ -48,9 +48,14 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
+  const [toInput, setToInput] = useState('')
+  const [ccInput, setCcInput] = useState('')
+  const [bccInput, setBccInput] = useState('')
+  const [focusedField, setFocusedField] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const toInputRef = useRef<HTMLInputElement>(null)
 
   // Load email to reply to
   useEffect(() => {
@@ -127,7 +132,6 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
       }
 
       if (draftId) {
-        // For simplicity, create new draft (could update existing)
         await emailOutboundService.saveAsDraft(emailAliasId, draftData)
       } else {
         const draft = await emailOutboundService.saveAsDraft(emailAliasId, draftData)
@@ -225,6 +229,9 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
     setAttachments([])
     setDraftId(null)
     setIsMinimized(false)
+    setToInput('')
+    setCcInput('')
+    setBccInput('')
   }
 
   const handleClose = async () => {
@@ -284,6 +291,34 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   }
 
+  const addRecipient = (
+    value: string,
+    list: string[],
+    setList: React.Dispatch<React.SetStateAction<string[]>>,
+    setInput: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    const trimmed = value.trim()
+    if (trimmed && trimmed.includes('@') && !list.includes(trimmed)) {
+      setList([...list, trimmed])
+      setInput('')
+    }
+  }
+
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    value: string,
+    list: string[],
+    setList: React.Dispatch<React.SetStateAction<string[]>>,
+    setInput: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
+      e.preventDefault()
+      addRecipient(value, list, setList, setInput)
+    } else if (e.key === 'Backspace' && !value && list.length > 0) {
+      setList(list.slice(0, -1))
+    }
+  }
+
   if (!isOpen) return null
 
   return (
@@ -302,290 +337,313 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
       )}
 
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
         onClick={(e) => e.target === e.currentTarget && handleClose()}
       >
         <div
-          className="flex flex-col rounded-lg shadow-2xl transition-all"
+          className="flex flex-col rounded-xl shadow-2xl transition-all duration-300 overflow-hidden"
           style={{
             backgroundColor: colors.surface,
             border: `1px solid ${colors.border}`,
-            width: isMinimized ? '600px' : '800px',
-            height: isMinimized ? 'auto' : '600px',
+            width: isMinimized ? '500px' : '680px',
+            height: isMinimized ? 'auto' : '580px',
             maxHeight: '90vh',
           }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between px-4 py-3 border-b"
-            style={{ borderColor: colors.divider }}
+            className="flex items-center justify-between px-5 py-3"
+            style={{ 
+              background: `linear-gradient(135deg, ${colors.primary}15, ${colors.primary}05)`,
+              borderBottom: `1px solid ${colors.divider}` 
+            }}
           >
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsMinimized(!isMinimized)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                style={{ color: colors.textSecondary }}
+              <div 
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: colors.primary + '20' }}
               >
-                {isMinimized ? <Maximize2 size={18} /> : <Minimize2 size={18} />}
-              </button>
-              <span className="font-medium" style={{ color: colors.textPrimary }}>
-                {draftId ? 'Draft' : 'New Message'}
-              </span>
+                <Sparkles size={16} style={{ color: colors.primary }} />
+              </div>
+              <div>
+                <h2 className="font-semibold text-base" style={{ color: colors.textPrimary }}>
+                  {draftId ? 'Edit Draft' : 'New Message'}
+                </h2>
+                <p className="text-xs" style={{ color: colors.textTertiary }}>
+                  From: {user?.email}
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsMinimized(!isMinimized)}
+                className="p-2 rounded-lg transition-colors hover:bg-black/5"
+                style={{ color: colors.textSecondary }}
+                title={isMinimized ? 'Expand' : 'Minimize'}
+              >
+                {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+              </button>
               <button
                 onClick={handleClose}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                className="p-2 rounded-lg transition-colors hover:bg-red-50 hover:text-red-500"
                 style={{ color: colors.textSecondary }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
           </div>
 
           {!isMinimized && (
-            <>
-              {/* To Field */}
-              <div className="flex items-start gap-3 p-4 border-b" style={{ borderColor: colors.divider }}>
-                <label className="text-sm font-medium pt-2 min-w-[50px]" style={{ color: colors.textSecondary }}>
-                  To
-                </label>
-                <div className="flex-1 flex flex-wrap gap-2">
-                  {to.map((recipient) => (
-                    <span
-                      key={recipient}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
-                      style={{ backgroundColor: colors.surfaceHover, color: colors.textPrimary }}
-                    >
-                      {recipient}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Recipients Section */}
+              <div className="px-5 pt-4 space-y-3">
+                {/* To Field */}
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-2 pt-2 min-w-[60px]">
+                    <label className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                      To
+                    </label>
+                    <div className="flex gap-1">
                       <button
                         type="button"
-                        onClick={() => setTo(prev => prev.filter(r => r !== recipient))}
-                        className="hover:text-red-500"
-                        style={{ color: colors.textSecondary }}
+                        onClick={() => setShowCc(!showCc)}
+                        className="text-xs px-1.5 py-0.5 rounded transition-colors"
+                        style={{ 
+                          color: showCc ? colors.primary : colors.textTertiary,
+                          backgroundColor: showCc ? colors.primary + '15' : 'transparent'
+                        }}
                       >
-                        ×
+                        Cc
                       </button>
-                    </span>
-                  ))}
+                      <button
+                        type="button"
+                        onClick={() => setShowBcc(!showBcc)}
+                        className="text-xs px-1.5 py-0.5 rounded transition-colors"
+                        style={{ 
+                          color: showBcc ? colors.primary : colors.textTertiary,
+                          backgroundColor: showBcc ? colors.primary + '15' : 'transparent'
+                        }}
+                      >
+                        Bcc
+                      </button>
+                    </div>
+                  </div>
+                  <div 
+                    className={`flex-1 flex flex-wrap gap-1.5 p-2 rounded-lg transition-all ${focusedField === 'to' ? 'ring-2' : ''}`}
+                    style={{ 
+                      backgroundColor: colors.surfaceHover,
+                      border: `1px solid ${focusedField === 'to' ? colors.primary : colors.border}`,
+                      boxShadow: focusedField === 'to' ? `0 0 0 2px ${colors.primary}30` : undefined
+                    }}
+                  >
+                    {to.map((recipient) => (
+                      <span
+                        key={recipient}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium"
+                        style={{ 
+                          backgroundColor: colors.primary + '15', 
+                          color: colors.primary 
+                        }}
+                      >
+                        {recipient}
+                        <button
+                          type="button"
+                          onClick={() => setTo(prev => prev.filter(r => r !== recipient))}
+                          className="hover:opacity-70 ml-0.5"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      ref={toInputRef}
+                      type="text"
+                      value={toInput}
+                      onChange={(e) => setToInput(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, toInput, to, setTo, setToInput)}
+                      onBlur={() => {
+                        addRecipient(toInput, to, setTo, setToInput)
+                        setFocusedField(null)
+                      }}
+                      onFocus={() => setFocusedField('to')}
+                      placeholder={to.length === 0 ? "recipient@email.com" : ""}
+                      className="flex-1 min-w-[150px] bg-transparent outline-none text-sm"
+                      style={{ color: colors.textPrimary }}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* CC Field */}
+                {showCc && (
+                  <div className="flex items-start gap-3 animate-in slide-in-from-top-2 duration-200">
+                    <label className="text-sm font-medium pt-2 min-w-[60px]" style={{ color: colors.textSecondary }}>
+                      Cc
+                    </label>
+                    <div 
+                      className={`flex-1 flex flex-wrap gap-1.5 p-2 rounded-lg transition-all ${focusedField === 'cc' ? 'ring-2' : ''}`}
+                      style={{ 
+                        backgroundColor: colors.surfaceHover,
+                        border: `1px solid ${focusedField === 'cc' ? colors.primary : colors.border}`,
+                        boxShadow: focusedField === 'cc' ? `0 0 0 2px ${colors.primary}30` : undefined
+                      }}
+                    >
+                      {cc.map((recipient) => (
+                        <span
+                          key={recipient}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium"
+                          style={{ 
+                            backgroundColor: colors.primary + '15', 
+                            color: colors.primary 
+                          }}
+                        >
+                          {recipient}
+                          <button
+                            type="button"
+                            onClick={() => setCc(prev => prev.filter(r => r !== recipient))}
+                            className="hover:opacity-70 ml-0.5"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={ccInput}
+                        onChange={(e) => setCcInput(e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, ccInput, cc, setCc, setCcInput)}
+                        onBlur={() => {
+                          addRecipient(ccInput, cc, setCc, setCcInput)
+                          setFocusedField(null)
+                        }}
+                        onFocus={() => setFocusedField('cc')}
+                        placeholder={cc.length === 0 ? "cc@email.com" : ""}
+                        className="flex-1 min-w-[150px] bg-transparent outline-none text-sm"
+                        style={{ color: colors.textPrimary }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* BCC Field */}
+                {showBcc && (
+                  <div className="flex items-start gap-3 animate-in slide-in-from-top-2 duration-200">
+                    <label className="text-sm font-medium pt-2 min-w-[60px]" style={{ color: colors.textSecondary }}>
+                      Bcc
+                    </label>
+                    <div 
+                      className={`flex-1 flex flex-wrap gap-1.5 p-2 rounded-lg transition-all ${focusedField === 'bcc' ? 'ring-2' : ''}`}
+                      style={{ 
+                        backgroundColor: colors.surfaceHover,
+                        border: `1px solid ${focusedField === 'bcc' ? colors.primary : colors.border}`,
+                        boxShadow: focusedField === 'bcc' ? `0 0 0 2px ${colors.primary}30` : undefined
+                      }}
+                    >
+                      {bcc.map((recipient) => (
+                        <span
+                          key={recipient}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium"
+                          style={{ 
+                            backgroundColor: colors.primary + '15', 
+                            color: colors.primary 
+                          }}
+                        >
+                          {recipient}
+                          <button
+                            type="button"
+                            onClick={() => setBcc(prev => prev.filter(r => r !== recipient))}
+                            className="hover:opacity-70 ml-0.5"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={bccInput}
+                        onChange={(e) => setBccInput(e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, bccInput, bcc, setBcc, setBccInput)}
+                        onBlur={() => {
+                          addRecipient(bccInput, bcc, setBcc, setBccInput)
+                          setFocusedField(null)
+                        }}
+                        onFocus={() => setFocusedField('bcc')}
+                        placeholder={bcc.length === 0 ? "bcc@email.com" : ""}
+                        className="flex-1 min-w-[150px] bg-transparent outline-none text-sm"
+                        style={{ color: colors.textPrimary }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Subject Field */}
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium min-w-[60px]" style={{ color: colors.textSecondary }}>
+                    Subject
+                  </label>
                   <input
                     type="text"
-                    value=""
-                    onChange={(e) => {
-                      const value = e.target.value
-                      if (value.endsWith(',') || value.endsWith(';')) {
-                        const newRecipient = value.slice(0, -1).trim()
-                        if (newRecipient && newRecipient.includes('@') && !to.includes(newRecipient)) {
-                          setTo(prev => [...prev, newRecipient])
-                        }
-                      }
-                    }}
-                    onPaste={(e) => {
-                      e.preventDefault()
-                      const paste = e.clipboardData.getData('text')
-                      const recipients = paste.split(/[,\n]/).map(s => s.trim()).filter(Boolean)
-                      const unique = [...to, ...recipients].filter((v, i, a) => a.indexOf(v) === i)
-                      setTo(unique.slice(0, 10))
-                    }}
-                    placeholder="email@example.com"
-                    className="flex-1 min-w-[200px] px-2 py-1 rounded"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Email subject"
+                    className="flex-1 px-3 py-2 rounded-lg outline-none text-sm transition-all"
                     style={{
                       backgroundColor: colors.surfaceHover,
-                      border: `1px solid ${colors.border}`,
+                      border: `1px solid ${focusedField === 'subject' ? colors.primary : colors.border}`,
                       color: colors.textPrimary,
                     }}
-                    autoFocus
+                    onFocus={() => setFocusedField('subject')}
+                    onBlur={() => setFocusedField(null)}
                   />
                 </div>
               </div>
 
-              {/* CC/BCC */}
-              <div className="px-4 py-2 flex gap-3 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setShowCc(!showCc)}
-                  className={`px-3 py-1 rounded-full transition-all ${
-                    showCc
-                      ? 'text-white'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: showCc ? colors.primary : colors.surfaceHover,
-                    color: showCc ? '#ffffff' : colors.textSecondary,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                >
-                  Cc
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowBcc(!showBcc)}
-                  className={`px-3 py-1 rounded-full transition-all ${
-                    showBcc
-                      ? 'text-white'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: showBcc ? colors.primary : colors.surfaceHover,
-                    color: showBcc ? '#ffffff' : colors.textSecondary,
-                    border: `1px solid ${colors.border}`,
-                  }}
-                >
-                  Bcc
-                </button>
-              </div>
-
-              {showCc && (
-                <div className="flex items-start gap-3 px-4 pb-3 border-b" style={{ borderColor: colors.divider }}>
-                  <label className="text-sm font-medium pt-2 min-w-[50px]" style={{ color: colors.textSecondary }}>
-                    Cc
-                  </label>
-                  <div className="flex-1 flex flex-wrap gap-2">
-                    {cc.map((recipient) => (
-                      <span
-                        key={recipient}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
-                        style={{ backgroundColor: colors.surfaceHover, color: colors.textPrimary }}
-                      >
-                        {recipient}
-                        <button
-                          type="button"
-                          onClick={() => setCc(prev => prev.filter(r => r !== recipient))}
-                          className="hover:text-red-500"
-                          style={{ color: colors.textSecondary }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      type="text"
-                      value=""
-                      onChange={(e) => {
-                        const value = e.target.value
-                        if (value.endsWith(',') || value.endsWith(';')) {
-                          const newRecipient = value.slice(0, -1).trim()
-                          if (newRecipient && newRecipient.includes('@') && !cc.includes(newRecipient)) {
-                            setCc(prev => [...prev, newRecipient])
-                          }
-                        }
-                      }}
-                      placeholder="cc@example.com"
-                      className="flex-1 min-w-[200px] px-2 py-1 rounded"
-                      style={{
-                        backgroundColor: colors.surfaceHover,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {showBcc && (
-                <div className="flex items-start gap-3 px-4 pb-3 border-b" style={{ borderColor: colors.divider }}>
-                  <label className="text-sm font-medium pt-2 min-w-[50px]" style={{ color: colors.textSecondary }}>
-                    Bcc
-                  </label>
-                  <div className="flex-1 flex flex-wrap gap-2">
-                    {bcc.map((recipient) => (
-                      <span
-                        key={recipient}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm"
-                        style={{ backgroundColor: colors.surfaceHover, color: colors.textPrimary }}
-                      >
-                        {recipient}
-                        <button
-                          type="button"
-                          onClick={() => setBcc(prev => prev.filter(r => r !== recipient))}
-                          className="hover:text-red-500"
-                          style={{ color: colors.textSecondary }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      type="text"
-                      value=""
-                      onChange={(e) => {
-                        const value = e.target.value
-                        if (value.endsWith(',') || value.endsWith(';')) {
-                          const newRecipient = value.slice(0, -1).trim()
-                          if (newRecipient && newRecipient.includes('@') && !bcc.includes(newRecipient)) {
-                            setBcc(prev => [...prev, newRecipient])
-                          }
-                        }
-                      }}
-                      placeholder="bcc@example.com"
-                      className="flex-1 min-w-[200px] px-2 py-1 rounded"
-                      style={{
-                        backgroundColor: colors.surfaceHover,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Subject */}
-              <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: colors.divider }}>
-                <label className="text-sm font-medium min-w-[50px]" style={{ color: colors.textSecondary }}>
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Email subject"
-                  className="flex-1 px-2 py-1 rounded"
-                  style={{
-                    backgroundColor: colors.surfaceHover,
-                    border: `1px solid ${colors.border}`,
-                    color: colors.textPrimary,
-                  }}
-                />
-              </div>
-
               {/* Body */}
-              <div className="flex-1 p-4 overflow-hidden">
+              <div className="flex-1 px-5 py-3 overflow-hidden">
                 <textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
-                  placeholder="Write your email content..."
-                  className="w-full h-full px-3 py-2 rounded resize-none"
+                  placeholder="Write your message here..."
+                  className="w-full h-full px-4 py-3 rounded-lg resize-none outline-none text-sm leading-relaxed transition-all"
                   style={{
                     backgroundColor: colors.surfaceHover,
-                    border: `1px solid ${colors.border}`,
+                    border: `1px solid ${focusedField === 'body' ? colors.primary : colors.border}`,
                     color: colors.textPrimary,
-                    fontSize: '14px',
-                    lineHeight: '1.5',
                   }}
+                  onFocus={() => setFocusedField('body')}
+                  onBlur={() => setFocusedField(null)}
                 />
               </div>
 
               {/* Attachments */}
               {attachments.length > 0 && (
-                <div className="px-4 py-2 border-t" style={{ borderColor: colors.divider }}>
+                <div className="px-5 py-2 border-t" style={{ borderColor: colors.divider }}>
                   <div className="flex flex-wrap gap-2">
                     {attachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm"
-                        style={{ backgroundColor: colors.surfaceHover, color: colors.textPrimary }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm group"
+                        style={{ 
+                          backgroundColor: colors.surfaceHover, 
+                          border: `1px solid ${colors.border}`
+                        }}
                       >
-                        <span className="truncate max-w-[150px]">{attachment.name}</span>
-                        <span style={{ color: colors.textTertiary }}>({formatFileSize(attachment.size)})</span>
+                        <FileText size={14} style={{ color: colors.primary }} />
+                        <span className="truncate max-w-[120px]" style={{ color: colors.textPrimary }}>
+                          {attachment.name}
+                        </span>
+                        <span className="text-xs" style={{ color: colors.textTertiary }}>
+                          {formatFileSize(attachment.size)}
+                        </span>
                         <button
                           onClick={() => removeAttachment(attachment.id)}
-                          className="hover:text-red-500"
+                          className="opacity-50 hover:opacity-100 transition-opacity"
                           style={{ color: colors.textSecondary }}
                         >
-                          ×
+                          <X size={14} />
                         </button>
                       </div>
                     ))}
@@ -595,19 +653,13 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
 
               {/* Footer */}
               <div
-                className="flex items-center justify-between px-4 py-3 border-t"
-                style={{ borderColor: colors.divider }}
+                className="flex items-center justify-between px-5 py-3 border-t"
+                style={{ 
+                  borderColor: colors.divider,
+                  backgroundColor: colors.background
+                }}
               >
-                <div className="flex items-center gap-2">
-                  {savingDraft && (
-                    <span className="text-sm" style={{ color: colors.textTertiary }}>Saving...</span>
-                  )}
-                  {draftId && !savingDraft && (
-                    <span className="text-sm" style={{ color: colors.textTertiary }}>Draft saved</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -619,39 +671,50 @@ export default function ComposeModal({ isOpen, onClose, replyToId, initialData }
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    style={{ color: colors.textSecondary }}
+                    className="p-2 rounded-lg transition-all hover:scale-105"
+                    style={{ 
+                      color: colors.textSecondary,
+                      backgroundColor: colors.surfaceHover
+                    }}
                     title="Attach files"
                   >
-                    <Paperclip size={20} />
+                    <Paperclip size={18} />
                   </button>
 
                   <button
                     type="button"
                     onClick={autosaveDraft}
                     disabled={savingDraft || !subject}
-                    className="px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    <Save size={18} />
-                    <span className="text-sm">Save</span>
-                  </button>
-
-                  <button
-                    onClick={handleSend}
-                    disabled={sending || to.length === 0 || !subject}
-                    className="px-6 py-2 rounded-lg flex items-center gap-2"
-                    style={{
-                      backgroundColor: sending || to.length === 0 || !subject ? colors.textTertiary : colors.primary,
-                      color: 'white',
+                    className="px-3 py-1.5 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2 text-sm"
+                    style={{ 
+                      color: colors.textSecondary,
+                      backgroundColor: colors.surfaceHover
                     }}
                   >
-                    <Send size={18} />
-                    <span className="text-sm font-medium">Send</span>
+                    <Save size={16} />
+                    <span>Save</span>
                   </button>
+
+                  <div className="text-xs" style={{ color: colors.textTertiary }}>
+                    {savingDraft && 'Saving...'}
+                    {draftId && !savingDraft && 'Draft saved'}
+                  </div>
                 </div>
+
+                <button
+                  onClick={handleSend}
+                  disabled={sending || to.length === 0 || !subject}
+                  className="px-5 py-2 rounded-lg flex items-center gap-2 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg"
+                  style={{
+                    backgroundColor: sending || to.length === 0 || !subject ? colors.textTertiary : colors.primary,
+                    color: 'white',
+                  }}
+                >
+                  <Send size={16} />
+                  <span>{sending ? 'Sending...' : 'Send'}</span>
+                </button>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
