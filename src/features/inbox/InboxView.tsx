@@ -671,5 +671,6 @@ export default function InboxView() {
         )}
       </div>
     </div>
+    </>
   )
 }
