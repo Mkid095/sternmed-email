@@ -206,8 +206,8 @@ export const emailOutboundService = {
     const monthlyLimit = monthly_limit_raw;
 
     // Check if counters need reset
-    const today = new Date().toISOString().split('T')[0];
-    const thisMonth = new Date().toISOString().slice(0, 7);
+    const today = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+    const thisMonth = new Date().toISOString().slice(0, 7) + '-01'; // "YYYY-MM-01" (first day of month)
 
     if ((limits as { last_reset_date: string }).last_reset_date !== today) {
       // Reset daily counter
