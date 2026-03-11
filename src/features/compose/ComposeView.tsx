@@ -413,18 +413,28 @@ export default function ComposeView() {
           CONTENT: contentHtml,
         }
 
-        // Replace placeholders in template HTML
+        // Start with template HTML and text
         let html = template.bodyHtml
+        let text = template.bodyText
+
+        // Replace all placeholders EXCEPT CONTENT first
         Object.entries(TEMPLATE_VARIABLES).forEach(([key, placeholder]) => {
+          if (key === 'CONTENT') return // handle separately
           const value = variables[key] || ''
           html = html.replace(new RegExp(placeholder, 'g'), value)
+          text = text.replace(new RegExp(placeholder, 'g'), value)
         })
-        finalBodyHtml = html
 
-        // Generate plain text from HTML (strip tags)
-        const div = document.createElement('div')
-        div.innerHTML = html
-        finalBodyText = div.textContent || div.innerText || html.replace(/<[^>]*>/g, '')
+        // Replace {{content}} placeholder if it exists
+        if (html.includes('{{content}}')) {
+          html = html.replace(/\{\{content\}\}/g, contentHtml)
+        }
+        if (text.includes('{{content}}')) {
+          text = text.replace(/\{\{content\}\}/g, body) // plain body
+        }
+
+        finalBodyHtml = html
+        finalBodyText = text
       } else {
         // Fallback: simple HTML with line breaks
         finalBodyHtml = plainToHtml(body)
