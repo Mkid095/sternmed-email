@@ -7,7 +7,7 @@
  * @module features/inbox/EmailDetailModal
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useEmailModalStore } from './useEmailModalStore'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { useToastSuccess, useToastError } from '../shared/ui'
@@ -178,14 +178,34 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
   const showSuccess = useToastSuccess()
   const showError = useToastError()
 
+  // Track current request to cancel stale ones
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef(true)
+  const pendingRequestIdRef = useRef<string | null>(null)
+
   /**
    * Fetch full thread when modal opens
    */
   useEffect(() => {
+    isMountedRef.current = true
+
     const fetchThread = async () => {
       if (!isOpen || !selectedEmail) {
         return
       }
+
+      // Cancel any pending request
+      if (abortControllerRef.current) {
+        abortControllerRef.abort()
+      }
+
+      // Create new AbortController for this request
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
+      // Generate a unique request ID to handle race conditions
+      const requestId = crypto.randomUUID()
+      pendingRequestIdRef.current = requestId
 
       setShowAllMessages(false)
       setThreadEmails([])
@@ -194,23 +214,49 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       if (selectedEmail.threadId && selectedEmail.threadId !== selectedEmail.id) {
         setLoadingThread(true)
         try {
+          // Check if this request is still the latest one
+          if (pendingRequestIdRef.current !== requestId) {
+            return
+          }
+
           const fullThread = await emailInboundService.getThread(selectedEmail.threadId)
-          // Sort by received_at ascending (earliest first)
-          const sorted = fullThread.sort((a, b) =>
-            new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
-          )
-          const otherEmails = sorted.filter(e => e.id !== selectedEmail.id)
-          setThreadEmails(otherEmails)
-        } catch (error) {
+
+          // Only update state if this is still the latest request and component is mounted
+          if (isMountedRef.current && pendingRequestIdRef.current === requestId) {
+            // Sort by received_at ascending (earliest first)
+            const sorted = fullThread.sort((a, b) =>
+              new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
+            )
+            const otherEmails = sorted.filter(e => e.id !== selectedEmail.id)
+            setThreadEmails(otherEmails)
+          }
+        } catch (error: any) {
+          // Ignore abort errors - they're expected when canceling
+          if (error.name === 'AbortError') {
+            return
+          }
           console.error('Failed to fetch thread:', error)
-          showError('Failed to load conversation')
+          if (isMountedRef.current && pendingRequestIdRef.current === requestId) {
+            showError('Failed to load conversation')
+          }
         } finally {
-          setLoadingThread(false)
+          if (isMountedRef.current && pendingRequestIdRef.current === requestId) {
+            setLoadingThread(false)
+          }
         }
       }
     }
 
-    fetchThread()
+    // Debounce slightly to prevent rapid successive calls
+    const timeoutId = setTimeout(fetchThread, 50)
+
+    return () => {
+      isMountedRef.current = false
+      clearTimeout(timeoutId)
+      if (abortControllerRef.current) {
+        abortControllerRef.abort()
+      }
+    }
   }, [isOpen, selectedEmail, showError])
 
   // Compute all emails in thread (chronological order)
