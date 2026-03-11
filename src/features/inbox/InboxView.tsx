@@ -15,6 +15,7 @@ import { emailInboundService } from '../../services/supabase/email-inbound.servi
 import { useAuthStore } from '../../store/authStore'
 import { useEmailModalStore } from './useEmailModalStore'
 import { useTheme } from '../../contexts/ThemeContext'
+import { RefreshCw, Filter, Mail, CheckCircle } from 'lucide-react'
 import type { EmailInbound } from '../../types'
 
 export default function InboxView() {
@@ -31,9 +32,11 @@ export default function InboxView() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [filter, setFilter] = useState<'all' | 'unread' | 'starred'>('all')
 
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Debounce search
   useEffect(() => {
@@ -91,11 +94,39 @@ export default function InboxView() {
     return () => window.removeEventListener('email-deleted', handleEmailDeleted)
   }, [fetchEmails, debouncedSearch])
 
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchEmails(1, debouncedSearch, true)
+    setRefreshing(false)
+  }
+
   const handleLoadMore = () => {
     const nextPage = page + 1
     setPage(nextPage)
     fetchEmails(nextPage, debouncedSearch, false)
   }
+
+  const handleMarkAllRead = async () => {
+    const unreadEmails = emails.filter(e => !e.isRead && !selectedIds.has(e.id))
+    try {
+      await Promise.all(
+        unreadEmails.map(email => emailInboundService.markAsRead(email.id))
+      )
+      setEmails(prev => prev.map(e => unreadEmails.find(u => u.id === e.id) ? { ...e, isRead: true } : e))
+    } catch (error) {
+      console.error('Failed to mark all as read:', error)
+    }
+  }
+
+  // Compute filtered emails based on filter state
+  const filteredEmails = emails.filter(email => {
+    if (filter === 'unread') return !email.isRead
+    if (filter === 'starred') return email.isStarred
+    return true
+  })
+
+  // Count unread emails
+  const unreadCount = emails.filter(e => !e.isRead).length
 
   const handleRowClick = async (email: EmailInbound) => {
     // Toggle selection if clicked on checkbox area (handled separately)
@@ -173,14 +204,132 @@ export default function InboxView() {
   )
 
   return (
-    <div className="min-h-full" style={{ backgroundColor: colors.surface }}>
-      <div className="divide-y" style={{ borderColor: colors.divider }}>
-        {emails.length === 0 && !loading ? (
+    <div className="min-h-full flex flex-col" style={{ backgroundColor: colors.surface }}>
+      {/* Page Header */}
+      <div className="flex-shrink-0 border-b px-6 py-4" style={{ borderColor: colors.divider }}>
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: Title and stats */}
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-xl font-semibold flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                <Mail size={22} style={{ color: colors.primary }} />
+                Inbox
+                {!loading && emails.length > 0 && (
+                  <span
+                    className="text-sm font-normal px-2 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: colors.searchBackground,
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    {filteredEmails.length} {filteredEmails.length === 1 ? 'email' : 'emails'}
+                  </span>
+                )}
+              </h1>
+              {unreadCount > 0 && (
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  {unreadCount} unread{unreadCount === 1 ? '' : 's'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2">
+            {/* Filter dropdown */}
+            <div className="relative">
+              <button
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  backgroundColor: colors.searchBackground,
+                  color: filter !== 'all' ? colors.primary : colors.textSecondary,
+                  border: `1px solid ${filter !== 'all' ? colors.primary : colors.border}`,
+                }}
+                onClick={() => {
+                  // Cycle through filters: all -> unread -> starred -> all
+                  if (filter === 'all') setFilter('unread')
+                  else if (filter === 'unread') setFilter('starred')
+                  else setFilter('all')
+                }}
+              >
+                <Filter size={16} />
+                <span className="capitalize">{filter === 'all' ? 'All' : filter}</span>
+              </button>
+            </div>
+
+            {/* Mark all as read */}
+            {unreadCount > 0 && selectedIds.size === 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  backgroundColor: colors.searchBackground,
+                  color: colors.textSecondary,
+                  border: `1px solid ${colors.border}`,
+                }}
+                title="Mark all as read"
+              >
+                <CheckCircle size={16} />
+                <span className="hidden sm:inline">Read</span>
+              </button>
+            )}
+
+            {/* Refresh button */}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="p-2 rounded-lg transition-all"
+              style={{
+                backgroundColor: colors.searchBackground,
+                color: (refreshing || loading) ? colors.textTertiary : colors.textSecondary,
+              }}
+              title="Refresh inbox"
+            >
+              <RefreshCw
+                size={18}
+                className={refreshing ? 'animate-spin' : ''}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Selected items toolbar */}
+        {selectedIds.size > 0 && (
+          <div
+            className="mt-3 px-3 py-2 rounded-lg flex items-center gap-3 transition-all"
+            style={{
+              backgroundColor: colors.primary + '15',
+              border: `1px solid ${colors.primary}30`,
+            }}
+          >
+            <span className="text-sm font-medium" style={{ color: colors.primary }}>
+              {selectedIds.size} {selectedIds.size === 1 ? 'email' : 'emails'} selected
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-sm font-medium underline"
+              style={{ color: colors.primary }}
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Email List */}
+      <div className="divide-y flex-1 overflow-y-auto" style={{ borderColor: colors.divider }}>
+        {filteredEmails.length === 0 && !loading ? (
           <div className="p-8 text-center text-gray-500">
-            <p className="text-sm">No emails in inbox</p>
+            <p className="text-sm">
+              {filter === 'all'
+                ? 'No emails in inbox'
+                : filter === 'unread'
+                ? 'No unread emails'
+                : 'No starred emails'}
+            </p>
           </div>
         ) : (
-          emails.map((email) => {
+          filteredEmails.map((email) => {
             const isUnread = !email.isRead
             const senderName = email.senderName || email.senderEmail.split('@')[0] || 'Unknown'
             const initials = getInitials(senderName)
