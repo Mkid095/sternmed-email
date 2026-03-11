@@ -25,21 +25,13 @@ import { emailOutboundService } from '../../services/supabase/email-outbound.ser
 import { useToastSuccess, useToastError } from '../shared/ui'
 import { useComposeStore } from './useComposeStore'
 import { useTheme } from '../../contexts/ThemeContext'
-import { supabase } from '../../config/supabase'
+import { useTemplateStore } from '../settings/useTemplateStore'
 import type { ComposeWindow } from './useComposeStore'
+import type { EmailTemplate } from '../settings/useTemplateStore'
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-interface EmailTemplate {
-  id: string
-  name: string
-  subject: string
-  body_html: string
-  body_text?: string
-  is_system: boolean
-}
 
 interface ComposeWindowProps {
   win: ComposeWindow
@@ -84,17 +76,18 @@ function ComposeWindow({
   onActivate, 
   templates 
 }: ComposeWindowProps) {
-  const { 
-    form, 
-    sending, 
-    savingDraft, 
-    handleInputChange, 
-    handleFileSelect, 
-    removeAttachment, 
-    sendEmail, 
-    saveAsDraft, 
-    resetForm, 
-    formatFileSize 
+  const {
+    form,
+    sending,
+    savingDraft,
+    handleInputChange,
+    handleTemplateChange,
+    handleFileSelect,
+    removeAttachment,
+    sendEmail,
+    saveAsDraft,
+    resetForm,
+    formatFileSize
   } = useComposeForm({ initialValues: win.initialData })
 
   const showSuccess = useToastSuccess()
@@ -106,42 +99,6 @@ function ComposeWindow({
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const windowRef = useRef<HTMLDivElement>(null)
-
-  // Template handling
-  const handleTemplateSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const templateId = e.target.value
-    if (!templateId) {
-      handleInputChange('template', '')
-      return
-    }
-
-    const template = templates.find(t => t.id === templateId)
-    if (!template) {
-      showError('Template not found')
-      return
-    }
-
-    let subject = template.subject
-    let bodyText = template.body_text || template.body_html.replace(/<[^>]*>/g, '')
-
-    Object.entries(COMPANY_INFO).forEach(([key, value]) => {
-      const placeholder = `{{${key}}}`
-      subject = subject.replace(new RegExp(placeholder, 'g'), value)
-      bodyText = bodyText.replace(new RegExp(placeholder, 'g'), value)
-    })
-
-    if (form.to[0]) {
-      const customerName = form.to[0].split('@')[0]
-      subject = subject.replace(/\{\{customer_name\}\}/g, customerName)
-      bodyText = bodyText.replace(/\{\{customer_name\}\}/g, customerName)
-      bodyText = bodyText.replace(/\{\{customer_email\}\}/g, form.to[0])
-    }
-
-    handleInputChange('template', templateId)
-    handleInputChange('subject', subject)
-    handleInputChange('body', bodyText)
-    showSuccess(`Applied template: ${template.name}`)
-  }
 
   // Form handlers
   const handleSubmit = async (e: React.FormEvent) => {
@@ -380,14 +337,14 @@ function ComposeWindow({
             <label className="text-sm w-20 flex-shrink-0" style={{ color: colors.textSecondary }}>Template</label>
             <select
               value={form.template || ''}
-              onChange={handleTemplateSelect}
+              onChange={(e) => handleTemplateChange(e.target.value)}
               className="flex-1 px-2 py-1.5 rounded text-sm outline-none cursor-pointer"
               style={{ backgroundColor: colors.surfaceHover, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
             >
               <option value="">Select template (optional)</option>
               {templates.map((tpl) => (
                 <option key={tpl.id} value={tpl.id}>
-                  {tpl.name} {tpl.is_system ? '(System)' : ''}
+                  {tpl.name} {tpl.isDefault ? '(System)' : ''}
                 </option>
               ))}
             </select>
@@ -489,19 +446,7 @@ function ComposeWindow({
 
 export function ComposeWindowManager() {
   const { windows, closeCompose, minimizeCompose, restoreCompose, bringToFront } = useComposeStore()
-  const [templates, setTemplates] = useState<EmailTemplate[]>([])
-
-  useEffect(() => {
-    const fetchTemplates = async () => {
-      try {
-        const { data, error } = await supabase.from('email_templates').select('*').order('name')
-        if (!error && data) setTemplates(data)
-      } catch (err) {
-        console.error('Failed to fetch templates:', err)
-      }
-    }
-    fetchTemplates()
-  }, [])
+  const { templates } = useTemplateStore()
 
   const sortedWindows = useMemo(
     () => [...windows].sort((a, b) => a.zIndex - b.zIndex),

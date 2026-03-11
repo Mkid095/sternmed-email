@@ -222,7 +222,7 @@ Nairobi, Kenya
 ),
 
 (
-  gen_random_uuid()),
+  gen_random_uuid(),
   'Follow-up Email',
   'Following up - Sternmed Afrika',
   '
