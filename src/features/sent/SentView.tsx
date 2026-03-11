@@ -10,13 +10,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
 import { useAuthStore } from '../../store/authStore'
+import { useSentDetailModalStore } from './useSentDetailModalStore'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useToastSuccess, useToastError } from '../shared/ui'
 import type { EmailOutbound } from '../../types'
 
 export default function SentView() {
   const navigate = useNavigate()
   const { emailAliasId } = useAuthStore()
+  const { open, close, selectedEmail } = useSentDetailModalStore()
   const { colors } = useTheme()
+  const showSuccess = useToastSuccess()
+  const showError = useToastError()
 
   const [emails, setEmails] = useState<EmailOutbound[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,6 +87,15 @@ export default function SentView() {
     fetchEmails(1, debouncedSearch, true)
   }, [emailAliasId, debouncedSearch, fetchEmails])
 
+  // Listen for email-deleted event
+  useEffect(() => {
+    const handleEmailDeleted = () => {
+      fetchEmails(1, debouncedSearch, true)
+    }
+    window.addEventListener('email-deleted', handleEmailDeleted)
+    return () => window.removeEventListener('email-deleted', handleEmailDeleted)
+  }, [fetchEmails, debouncedSearch])
+
   const handleLoadMore = () => {
     const nextPage = page + 1
     setPage(nextPage)
@@ -89,9 +103,24 @@ export default function SentView() {
   }
 
   const handleRowClick = (email: EmailOutbound) => {
-    // TODO: Implement sent email detail view
-    console.log('Sent email clicked:', email)
+    open(email)
   }
+
+  const handleReply = useCallback((email: EmailOutbound) => {
+    // Open reply compose window
+    navigate('/compose', { state: { replyToEmail: email } })
+    // Could also open compose modal directly:
+    // openCompose({ replyToId: email.id })
+  }, [navigate])
+
+  const handleForward = useCallback((email: EmailOutbound) => {
+    // Open forward compose window
+    navigate('/compose', { state: { forwardEmail: email } })
+  }, [navigate])
+
+  const handleDelete = useCallback(() => {
+    // Modal will handle delete and refresh list
+  }, [])
 
   const getInitials = (email: string) => {
     if (!email) return '?'

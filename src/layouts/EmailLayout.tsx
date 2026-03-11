@@ -5,6 +5,7 @@ import { useEmailModalStore } from '../features/inbox/useEmailModalStore'
 import { useComposeStore } from '../features/compose/useComposeStore'
 import { useTheme } from '../contexts/ThemeContext'
 import EmailDetailModal from '../features/inbox/EmailDetailModal'
+import SentDetailModal from '../features/sent/SentDetailModal'
 import { ComposeWindowManager } from '../features/compose/ComposeWindowManager'
 import type { EmailInbound } from '../types'
 
@@ -249,17 +250,35 @@ export default function EmailLayout() {
           openCompose({
             to: [email.senderEmail],
             subject: `Re: ${email.subject}`,
-            body: `\n\n--- Original message ---\nFrom: ${email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n\n${email.bodyText}`,
+            body: `\n\n--- Original message ---\nFrom: ${email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n\n${email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, '') || ''}`,
           })
         }}
         onForward={(email) => {
           openCompose({
             subject: `Fwd: ${email.subject}`,
-            body: `\n\n--- Forwarded message ---\nFrom: ${email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n\n${email.bodyText}`,
+            body: `\n\n--- Forwarded message ---\nFrom: ${email.senderEmail}\nDate: ${new Date(email.receivedAt).toLocaleString()}\n\n${email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, '') || ''}`,
           })
         }}
         onDelete={() => {
           // Refresh handled by event listener
+        }}
+      />
+      <SentDetailModal
+        onReply={(email) => {
+          openCompose({
+            to: [email.recipientEmail],
+            subject: `Re: ${email.subject}`,
+            body: `\n\n--- Original message ---\nTo: ${email.recipientEmail}\nDate: ${new Date(email.createdAt).toLocaleString()}\n\n${email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, '') || ''}`,
+          })
+        }}
+        onForward={(email) => {
+          openCompose({
+            subject: `Fwd: ${email.subject}`,
+            body: `\n\n--- Forwarded message ---\nTo: ${email.recipientEmail}\nDate: ${new Date(email.createdAt).toLocaleString()}\n\n${email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, '') || ''}`,
+          })
+        }}
+        onDelete={() => {
+          // Refresh handled by event listener in SentView
         }}
       />
       <ComposeWindowManager />
