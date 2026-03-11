@@ -37,6 +37,7 @@ import { storageService } from '../../services/storage.service'
 import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
+import { useToastSuccess, useToastError } from '../shared/ui'
 
 // ============================================================================
 // TYPES
@@ -115,6 +116,8 @@ export default function ComposeModal({
   const { emailAliasId, user } = useAuthStore()
   const { colors } = useTheme()
   const { confirm, confirmation } = useConfirmationModal()
+  const showSuccess = useToastSuccess()
+  const showError = useToastError()
 
   // Form state
   const [to, setTo] = useState<string[]>(initialData?.to || [])

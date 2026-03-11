@@ -174,6 +174,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
   const [loadingThread, setLoadingThread] = useState(false)
   const [showToDetails, setShowToDetails] = useState(false)
   const [activeEmail, setActiveEmail] = useState<EmailInbound | null>(null)
+  const [displayMode, setDisplayMode] = useState<'single' | 'all'>('single')
 
   const showSuccess = useToastSuccess()
   const showError = useToastError()
@@ -209,7 +210,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
 
       // Cancel any pending request
       if (abortControllerRef.current) {
-        abortControllerRef.abort()
+        abortControllerRef.current.abort()
       }
 
       // Create new AbortController for this request
@@ -299,7 +300,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       isMountedRef.current = false
       clearTimeout(timeoutId)
       if (abortControllerRef.current) {
-        abortControllerRef.abort()
+        abortControllerRef.current.abort()
       }
     }
   }, [isOpen, selectedEmail, showError])
@@ -314,31 +315,6 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
   const activeEmailIndex = activeEmail
     ? allThreadEmails.findIndex(e => e.id === activeEmail.id)
     : -1
-
-  /**
-   * Navigate to next email in thread (newer)
-   */
-  const handleNextEmail = () => {
-    if (activeEmailIndex < allThreadEmails.length - 1) {
-      setActiveEmail(allThreadEmails[activeEmailIndex + 1])
-    }
-  }
-
-  /**
-   * Navigate to previous email in thread (older)
-   */
-  const handlePrevEmail = () => {
-    if (activeEmailIndex > 0) {
-      setActiveEmail(allThreadEmails[activeEmailIndex - 1])
-    }
-  }
-
-  /**
-   * Toggle between single email view and full thread view
-   */
-  const handleToggleView = () => {
-    setShowAllMessages(prev => !prev)
-  }
 
   /**
    * Close modal and reset state
@@ -368,6 +344,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
    * Navigate to next email in thread (newer)
    */
   const handleNextEmail = () => {
+    if (!activeEmail) return
     const currentIdx = allThreadEmails.findIndex(e => e.id === activeEmail.id)
     if (currentIdx < allThreadEmails.length - 1) {
       setActiveEmail(allThreadEmails[currentIdx + 1])
@@ -378,6 +355,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
    * Navigate to previous email in thread (older)
    */
   const handlePrevEmail = () => {
+    if (!activeEmail) return
     const currentIdx = allThreadEmails.findIndex(e => e.id === activeEmail.id)
     if (currentIdx > 0) {
       setActiveEmail(allThreadEmails[currentIdx - 1])
