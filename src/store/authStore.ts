@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { auth, signIn, signOut } from '../config/firebase'
+import { auth, signIn, signOut, changePassword as firebaseChangePassword } from '../config/firebase'
 import { supabase, User } from '../config/supabase'
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
 
@@ -13,6 +13,7 @@ interface AuthState {
   initialize: () => Promise<void>
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   setUser: (user: User | null) => void
   setEmailAliasId: (aliasId: string | undefined) => void
 }
@@ -84,6 +85,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       emailAliasId: undefined,
       emailAlias: null,
     })
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    await firebaseChangePassword(currentPassword, newPassword)
   },
 
   setUser: (user) => set({ user }),

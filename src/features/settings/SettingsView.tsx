@@ -25,6 +25,7 @@ import {
   Eye,
   ChevronRight,
   Mail,
+  Lock,
 } from 'lucide-react'
 import { CloseIcon } from '../../components/icons'
 
@@ -32,7 +33,7 @@ type TabKey = 'profile' | 'templates'
 
 export default function SettingsView() {
   const navigate = useNavigate()
-  const { user, emailAliasId, logout } = useAuthStore()
+  const { user, emailAliasId, logout, changePassword } = useAuthStore()
   const { colors } = useTheme()
   const { confirm, confirmation } = useConfirmationModal()
 
@@ -49,6 +50,17 @@ export default function SettingsView() {
     bodyText: '',
     category: 'general',
   })
+
+  // Password change state
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
 
   const { templates, fetchTemplates, addTemplate, updateTemplate, deleteTemplate } = useTemplateStore()
 
@@ -135,6 +147,38 @@ export default function SettingsView() {
       category: template.category,
     })
     setShowTemplateModal(true)
+  }
+
+  const handleChangePassword = async () => {
+    setPasswordError(null)
+    setPasswordSuccess(null)
+
+    if (!passwordForm.currentPassword) {
+      setPasswordError('Current password is required')
+      return
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New passwords do not match')
+      return
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters')
+      return
+    }
+
+    try {
+      setChangingPassword(true)
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword)
+      setPasswordSuccess('Password changed successfully!')
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setTimeout(() => setPasswordSuccess(null), 5000)
+    } catch (error: any) {
+      setPasswordError(error.message || 'Failed to change password')
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
   return (
@@ -260,6 +304,96 @@ export default function SettingsView() {
                 ) : (
                   <p style={{ color: colors.textSecondary }}>No email alias configured</p>
                 )}
+              </section>
+
+              {/* Password Change Section */}
+              <section className="rounded-xl p-8" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
+                <div className="flex items-center gap-4 mb-6">
+                  <Lock size={28} style={{ color: colors.primary }} />
+                  <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Change Password</h2>
+                </div>
+
+                {passwordSuccess && (
+                  <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#10b98120', color: '#10b981' }}>
+                    {passwordSuccess}
+                  </div>
+                )}
+
+                {passwordError && (
+                  <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>
+                    {passwordError}
+                  </div>
+                )}
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                      Current Password *
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      placeholder="Enter your current password"
+                      className="w-full px-4 py-2.5 rounded-lg outline-none"
+                      style={{
+                        backgroundColor: colors.searchBackground,
+                        color: colors.textPrimary,
+                        border: `1px solid ${colors.border}`,
+                      }}
+                      disabled={changingPassword}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                      New Password *
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      placeholder="Enter new password (minimum 6 characters)"
+                      className="w-full px-4 py-2.5 rounded-lg outline-none"
+                      style={{
+                        backgroundColor: colors.searchBackground,
+                        color: colors.textPrimary,
+                        border: `1px solid ${colors.border}`,
+                      }}
+                      disabled={changingPassword}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                      Confirm New Password *
+                    </label>
+                    <input
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      placeholder="Re-enter new password"
+                      className="w-full px-4 py-2.5 rounded-lg outline-none"
+                      style={{
+                        backgroundColor: colors.searchBackground,
+                        color: colors.textPrimary,
+                        border: `1px solid ${colors.border}`,
+                      }}
+                      disabled={changingPassword}
+                    />
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={changingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                      className="px-6 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                      style={{ backgroundColor: colors.primary }}
+                    >
+                      {changingPassword ? 'Changing Password...' : 'Change Password'}
+                    </button>
+                  </div>
+                </div>
               </section>
 
               {/* Actions Section */}

@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth'
+import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -22,6 +22,21 @@ export async function signIn(email: string, password: string) {
 
 export async function signOut() {
   return await firebaseSignOut(auth)
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const user = auth.currentUser
+
+  if (!user || !user.email) {
+    throw new Error('No user is signed in')
+  }
+
+  // Re-authenticate with current password
+  const credential = EmailAuthProvider.credential(user.email, currentPassword)
+  await reauthenticateWithCredential(user, credential)
+
+  // Update password
+  await updatePassword(user, newPassword)
 }
 
 export { app as firebaseApp }
