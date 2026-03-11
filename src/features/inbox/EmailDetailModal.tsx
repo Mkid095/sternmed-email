@@ -735,8 +735,8 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                               ))}
                           </div>
                         </div>
-                      </div>
                     )}
+                      </div>
 
                       {/* Reply/Forward Bar */}
                       <div className="mt-8 pt-4">
