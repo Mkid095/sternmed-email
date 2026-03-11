@@ -37,6 +37,7 @@ import { storageService } from '../../services/storage.service'
 import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
+import { useTemplateStore, TEMPLATE_VARIABLES } from '../settings/useTemplateStore'
 
 // ============================================================================
 // TYPES
@@ -80,6 +81,45 @@ const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email)
 }
 
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
+/**
+ * Convert plain text to simple HTML with line breaks
+ */
+function plainToHtml(text: string): string {
+  return escapeHtml(text).replace(/\n/g, '<br>')
+}
+
+/**
+ * Get default placeholder values for templates
+ */
+function getDefaultTemplateVariables(userEmail?: string): Record<string, string> {
+  const now = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
+  return {
+    COMPANY_NAME: 'Sternmed Afrika',
+    COMPANY_ADDRESS: 'P.O. Box [Your P.O. Box], Nairobi, Kenya',
+    COMPANY_PHONE: '+254 700 000 000',
+    COMPANY_EMAIL: 'info@sternmedafrika.com',
+    WEBSITE: 'https://sternmedafrika.com',
+    CURRENT_DATE: now,
+    CUSTOMER_NAME: '',
+    CUSTOMER_EMAIL: userEmail || '',
+    CONTENT: '',
+  }
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -116,6 +156,12 @@ export default function ComposeView() {
   const [savingDraft, setSavingDraft] = useState(false)
   const [draftId, setDraftId] = useState<string | null>(null)
 
+  // Template selection
+  const { templates, getTemplate } = useTemplateStore()
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
+    () => templates.find(t => t.isDefault)?.id || templates[0]?.id || 'standard-email'
+  )
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -136,6 +182,9 @@ export default function ComposeView() {
         setSubject(draft.subject || '')
         setBody(draft.bodyText || draft.bodyHtml?.replace(/<br>/g, '\n') || '')
         setDraftId(draft.id)
+        if (draft.templateId) {
+          setSelectedTemplateId(draft.templateId)
+        }
         sessionStorage.removeItem('editDraft')
       } catch (error) {
         console.error('Error loading draft:', error)
@@ -292,6 +341,7 @@ export default function ComposeView() {
         bodyText: body,
         bodyHtml: body.replace(/\n/g, '<br>'),
         attachments: allAttachments,
+        templateId: selectedTemplateId,
       }
 
       if (draftId) {
@@ -305,7 +355,7 @@ export default function ComposeView() {
     } finally {
       setSavingDraft(false)
     }
-  }, [emailAliasId, subject, body, attachments, to, cc, bcc, draftId])
+  }, [emailAliasId, subject, body, attachments, to, cc, bcc, draftId, selectedTemplateId])
 
   const handleSend = useCallback(async () => {
     if (!emailAliasId) {
@@ -349,11 +399,43 @@ export default function ComposeView() {
 
       const allAttachments = [...existing, ...uploaded]
 
+      // Get selected template and apply it
+      const template = getTemplate(selectedTemplateId)
+      let finalBodyHtml: string
+      let finalBodyText: string
+
+      if (template) {
+        // Prepare variables with defaults
+        const defaultVars = getDefaultTemplateVariables(user?.email)
+        const contentHtml = plainToHtml(body)
+        const variables: Record<string, string> = {
+          ...defaultVars,
+          CONTENT: contentHtml,
+        }
+
+        // Replace placeholders in template HTML
+        let html = template.bodyHtml
+        Object.entries(TEMPLATE_VARIABLES).forEach(([key, placeholder]) => {
+          const value = variables[key] || ''
+          html = html.replace(new RegExp(placeholder, 'g'), value)
+        })
+        finalBodyHtml = html
+
+        // Generate plain text from HTML (strip tags)
+        const div = document.createElement('div')
+        div.innerHTML = html
+        finalBodyText = div.textContent || div.innerText || html.replace(/<[^>]*>/g, '')
+      } else {
+        // Fallback: simple HTML with line breaks
+        finalBodyHtml = plainToHtml(body)
+        finalBodyText = body
+      }
+
       await emailOutboundService.sendEmail(emailAliasId, {
         aliasId: emailAliasId,
         recipientEmail: to[0], cc, bcc, subject,
-        bodyText: body,
-        bodyHtml: body.replace(/\n/g, '<br>'),
+        bodyText: finalBodyText,
+        bodyHtml: finalBodyHtml,
         attachments: allAttachments,
       })
 
@@ -377,7 +459,7 @@ export default function ComposeView() {
     } finally {
       setSending(false)
     }
-  }, [emailAliasId, to, subject, attachments, cc, bcc, body, draftId, confirm, navigate])
+  }, [emailAliasId, to, subject, attachments, cc, bcc, body, draftId, confirm, navigate, selectedTemplateId, getTemplate, user])
 
   const handleDiscard = useCallback(async () => {
     const result = await confirm({
@@ -572,6 +654,32 @@ export default function ComposeView() {
                 onFocus={() => setFocusedField('subject')}
                 onBlur={() => setFocusedField(null)}
               />
+            </div>
+
+            {/* Template Selector */}
+            <div className="flex items-center gap-4">
+              <label
+                className="text-sm font-medium min-w-[80px] flex-shrink-0"
+                style={{ color: colors.textSecondary }}
+              >
+                Template
+              </label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                className="flex-1 px-4 py-3 rounded-lg outline-none text-sm"
+                style={{
+                  backgroundColor: colors.surface,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.textPrimary,
+                }}
+              >
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
