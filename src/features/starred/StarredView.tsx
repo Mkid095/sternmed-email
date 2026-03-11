@@ -2,7 +2,7 @@
  * Starred View Component
  *
  * Displays starred emails in Gmail-style list layout.
- * Consistent UI with Inbox page including batch operations.
+ * Matches InboxView UI exactly for consistency.
  *
  * @module features/starred/StarredView
  */
@@ -15,7 +15,7 @@ import { useEmailModalStore } from '../inbox/useEmailModalStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import { useToastSuccess, useToastError } from '../shared/ui'
-import { RefreshCw, Mail, CheckCircle } from 'lucide-react'
+import { RefreshCw, Mail, CheckCircle, Star } from 'lucide-react'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
 import type { EmailInbound } from '../../types'
 
