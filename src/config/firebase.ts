@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth'
+import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut, reauthenticateWithCredential, EmailAuthProvider, updatePassword, sendPasswordResetEmail } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -37,6 +37,10 @@ export async function changePassword(currentPassword: string, newPassword: strin
 
   // Update password
   await updatePassword(user, newPassword)
+}
+
+export async function sendPasswordReset(email: string) {
+  return await sendPasswordResetEmail(getAuth(), email)
 }
 
 export { app as firebaseApp }

@@ -2,13 +2,19 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Mail, Lock, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { sendPasswordReset } from '../../config/firebase'
 
 export default function EmailLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetMessage, setResetMessage] = useState('')
+  const [resetError, setResetError] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+
   const { login } = useAuthStore()
   const navigate = useNavigate()
 
@@ -26,6 +32,35 @@ export default function EmailLogin() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetError('')
+    setResetMessage('')
+    setResetLoading(true)
+
+    try {
+      await sendPasswordReset(resetEmail)
+      setResetMessage('Password reset email sent! Check your inbox.')
+      setResetEmail('')
+      setTimeout(() => {
+        setShowForgotPassword(false)
+        setResetMessage('')
+      }, 3000)
+    } catch (err: any) {
+      console.error('Password reset error:', err)
+      setResetError(err.message || 'Failed to send reset email')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const closeForgotPassword = () => {
+    setShowForgotPassword(false)
+    setResetEmail('')
+    setResetMessage('')
+    setResetError('')
   }
 
   return (
@@ -84,6 +119,16 @@ export default function EmailLogin() {
               </div>
             </div>
 
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Forgot password?
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -98,6 +143,75 @@ export default function EmailLogin() {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Reset Password</h2>
+              <button
+                onClick={closeForgotPassword}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {resetMessage ? (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-700 text-sm">{resetMessage}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
+
+                {resetError && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">{resetError}</p>
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="resetEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    id="resetEmail"
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="you@sternmedafrika.com"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeForgotPassword}
+                    className="flex-1 py-3 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading || !resetEmail}
+                    className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {resetLoading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
