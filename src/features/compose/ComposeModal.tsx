@@ -239,12 +239,12 @@ export default function ComposeModal({
 
     for (const file of Array.from(files)) {
       if (file.size > FILE_CONSTRAINTS.MAX_FILE_SIZE) {
-        alert(`File "${file.name}" exceeds 10MB limit`)
+        showError(`File "${file.name}" exceeds 10MB limit`)
         continue
       }
 
       if (totalSize + file.size > FILE_CONSTRAINTS.MAX_TOTAL_SIZE) {
-        alert('Total attachment size exceeds 100MB limit')
+        showError('Total attachment size exceeds 100MB limit')
         break
       }
 
@@ -261,7 +261,7 @@ export default function ComposeModal({
     if (newAttachments.length > 0) {
       setAttachments(prev => [...prev, ...newAttachments])
     }
-  }, [attachments])
+  }, [attachments, showError])
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments(prev => prev.filter(a => a.id !== id))
@@ -309,24 +309,25 @@ export default function ComposeModal({
       }
     } catch (error) {
       console.error('Error autosaving draft:', error)
+      showError('Failed to save draft')
     } finally {
       setSavingDraft(false)
     }
-  }, [emailAliasId, subject, body, attachments, to, cc, bcc, draftId])
+  }, [emailAliasId, subject, body, attachments, to, cc, bcc, draftId, showError])
 
   const handleSend = useCallback(async () => {
     if (!emailAliasId) {
-      alert('No email alias configured')
+      showError('No email alias configured')
       return
     }
 
     if (to.length === 0) {
-      alert('Please enter at least one recipient')
+      showError('Please enter at least one recipient')
       return
     }
 
     if (!subject.trim()) {
-      alert('Please enter a subject')
+      showError('Please enter a subject')
       return
     }
 
@@ -370,14 +371,14 @@ export default function ComposeModal({
 
       resetForm()
       onClose()
-      alert('Email sent successfully!')
+      showSuccess('Email sent successfully!')
     } catch (error) {
       console.error('Error sending email:', error)
-      alert('Failed to send email: ' + (error instanceof Error ? error.message : String(error)))
+      showError('Failed to send email: ' + (error instanceof Error ? error.message : String(error)))
     } finally {
       setSending(false)
     }
-  }, [emailAliasId, to, subject, attachments, cc, bcc, body, draftId, confirm, onClose])
+  }, [emailAliasId, to, subject, attachments, cc, bcc, body, draftId, confirm, onClose, showSuccess, showError])
 
   // ========================================================================
   // FORM MANAGEMENT

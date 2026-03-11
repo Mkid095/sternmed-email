@@ -12,6 +12,7 @@ import { useEmailModalStore } from './useEmailModalStore'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { useToastSuccess, useToastError } from '../shared/ui'
 import { useTheme } from '../../contexts/ThemeContext'
+import type { EmailInbound } from '../../types'
 
 /**
  * EmailDetailModal Props
@@ -172,8 +173,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
   const [threadEmails, setThreadEmails] = useState<any[]>([])
   const [loadingThread, setLoadingThread] = useState(false)
   const [showToDetails, setShowToDetails] = useState(false)
-  const [currentEmailIndex, setCurrentEmailIndex] = useState(0)
-  const [totalEmails, setTotalEmails] = useState(0)
+  const [activeEmail, setActiveEmail] = useState<EmailInbound | null>(null)
 
   const showSuccess = useToastSuccess()
   const showError = useToastError()
@@ -189,28 +189,65 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
 
       setShowAllMessages(false)
       setThreadEmails([])
-      setTotalEmails(0)
+      setActiveEmail(selectedEmail)
 
       if (selectedEmail.threadId && selectedEmail.threadId !== selectedEmail.id) {
         setLoadingThread(true)
         try {
           const fullThread = await emailInboundService.getThread(selectedEmail.threadId)
-          const otherEmails = fullThread.filter(e => e.id !== selectedEmail.id)
+          // Sort by received_at ascending (earliest first)
+          const sorted = fullThread.sort((a, b) =>
+            new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
+          )
+          const otherEmails = sorted.filter(e => e.id !== selectedEmail.id)
           setThreadEmails(otherEmails)
-          setTotalEmails(otherEmails.length + 1)
         } catch (error) {
           console.error('Failed to fetch thread:', error)
           showError('Failed to load conversation')
         } finally {
           setLoadingThread(false)
         }
-      } else {
-        setTotalEmails(1)
       }
     }
 
     fetchThread()
   }, [isOpen, selectedEmail, showError])
+
+  // Compute all emails in thread (chronological order)
+  const allThreadEmails = activeEmail
+    ? [activeEmail, ...threadEmails].sort((a, b) =>
+        new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
+      )
+    : []
+
+  const activeEmailIndex = activeEmail
+    ? allThreadEmails.findIndex(e => e.id === activeEmail.id)
+    : -1
+
+  /**
+   * Navigate to next email in thread (newer)
+   */
+  const handleNextEmail = () => {
+    if (activeEmailIndex < allThreadEmails.length - 1) {
+      setActiveEmail(allThreadEmails[activeEmailIndex + 1])
+    }
+  }
+
+  /**
+   * Navigate to previous email in thread (older)
+   */
+  const handlePrevEmail = () => {
+    if (activeEmailIndex > 0) {
+      setActiveEmail(allThreadEmails[activeEmailIndex - 1])
+    }
+  }
+
+  /**
+   * Toggle between single email view and full thread view
+   */
+  const handleToggleView = () => {
+    setShowAllMessages(prev => !prev)
+  }
 
   /**
    * Close modal and reset state
@@ -218,9 +255,43 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
   const handleClose = useCallback(() => {
     close()
     setShowAllMessages(false)
+    setDisplayMode('single')
     setThreadEmails([])
     setShowToDetails(false)
   }, [close])
+
+  /**
+   * Toggle between single view and all messages
+   */
+  const handleToggleView = () => {
+    if (displayMode === 'single') {
+      setDisplayMode('all')
+      setShowAllMessages(true)
+    } else {
+      setDisplayMode('single')
+      setShowAllMessages(false)
+    }
+  }
+
+  /**
+   * Navigate to next email in thread (newer)
+   */
+  const handleNextEmail = () => {
+    const currentIdx = allThreadEmails.findIndex(e => e.id === activeEmail.id)
+    if (currentIdx < allThreadEmails.length - 1) {
+      setActiveEmail(allThreadEmails[currentIdx + 1])
+    }
+  }
+
+  /**
+   * Navigate to previous email in thread (older)
+   */
+  const handlePrevEmail = () => {
+    const currentIdx = allThreadEmails.findIndex(e => e.id === activeEmail.id)
+    if (currentIdx > 0) {
+      setActiveEmail(allThreadEmails[currentIdx - 1])
+    }
+  }
 
   /**
    * Handle keyboard shortcuts
@@ -240,10 +311,10 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
    * Delete action
    */
   const handleDelete = useCallback(async () => {
-    if (!selectedEmail) return
+    if (!activeEmail) return
 
     try {
-      await emailInboundService.softDelete(selectedEmail.id)
+      await emailInboundService.softDelete(activeEmail.id)
       showSuccess('Email deleted')
       onDelete?.()
       window.dispatchEvent(new Event('email-deleted'))
@@ -252,60 +323,66 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       console.error('Failed to delete email:', error)
       showError('Failed to delete email')
     }
-  }, [selectedEmail, showSuccess, showError, onDelete, handleClose])
+  }, [activeEmail, showSuccess, showError, onDelete, handleClose])
 
   /**
    * Toggle star status
    */
   const handleToggleStar = useCallback(async () => {
-    if (!selectedEmail) return
+    if (!activeEmail) return
 
     try {
-      const newStarred = await emailInboundService.toggleStarred(selectedEmail.id)
+      const newStarred = await emailInboundService.toggleStarred(activeEmail.id)
       showSuccess(newStarred ? 'Starred' : 'Star removed')
+      // Update local state
+      setActiveEmail(prev => prev ? { ...prev, isStarred: newStarred } : null)
+      setThreadEmails(prev => prev.map(e => e.id === activeEmail.id ? { ...e, isStarred: newStarred } : e))
     } catch (error) {
       console.error('Failed to toggle star:', error)
       showError('Failed to update star')
     }
-  }, [selectedEmail, showSuccess, showError])
+  }, [activeEmail, showSuccess, showError])
 
   /**
    * Toggle read/unread status
    */
   const handleToggleRead = useCallback(async () => {
-    if (!selectedEmail) return
+    if (!activeEmail) return
 
     try {
-      if (selectedEmail.isRead) {
-        await emailInboundService.markAsUnread(selectedEmail.id)
+      if (activeEmail.isRead) {
+        await emailInboundService.markAsUnread(activeEmail.id)
         showSuccess('Marked as unread')
       } else {
-        await emailInboundService.markAsRead(selectedEmail.id)
+        await emailInboundService.markAsRead(activeEmail.id)
         showSuccess('Marked as read')
       }
+      // Update local state
+      setActiveEmail(prev => prev ? { ...prev, isRead: !prev.isRead } : null)
+      setThreadEmails(prev => prev.map(e => e.id === activeEmail.id ? { ...e, isRead: !activeEmail.isRead } : e))
     } catch (error) {
       console.error('Failed to toggle read status:', error)
       showError('Failed to update status')
     }
-  }, [selectedEmail, showSuccess, showError])
+  }, [activeEmail, showSuccess, showError])
 
   /**
    * Reply action - opens compose window
    */
   const handleReply = useCallback(() => {
-    if (onReply && selectedEmail) {
-      onReply(selectedEmail)
+    if (onReply && activeEmail) {
+      onReply(activeEmail)
     }
-  }, [onReply, selectedEmail])
+  }, [onReply, activeEmail])
 
   /**
    * Forward action - opens compose window
    */
   const handleForward = useCallback(() => {
-    if (onForward && selectedEmail) {
-      onForward(selectedEmail)
+    if (onForward && activeEmail) {
+      onForward(activeEmail)
     }
-  }, [onForward, selectedEmail])
+  }, [onForward, activeEmail])
 
   const handleArchive = useCallback(async () => {
     showSuccess('Archive feature coming soon')
@@ -328,44 +405,44 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
     label,
     onClick,
     active = false,
+    disabled = false,
   }: {
     Icon: React.ElementType
     label: string
     onClick: () => void
     active?: boolean
+    disabled?: boolean
   }) => (
     <button
       onClick={onClick}
       title={label}
       aria-label={label}
+      disabled={disabled}
       className="p-2 rounded-full transition-colors"
       style={{
-        color: active ? colors.primary : colors.textSecondary,
+        color: disabled ? colors.textTertiary : (active ? colors.primary : colors.textSecondary),
         backgroundColor: 'transparent',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.4 : 1,
       }}
-      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+      onMouseEnter={(e) => !disabled && (e.currentTarget.style.backgroundColor = colors.divider)}
+      onMouseLeave={(e) => !disabled && (e.currentTarget.style.backgroundColor = 'transparent')}
     >
-      <Icon color={active ? colors.primary : colors.textSecondary} />
+      <Icon color={disabled ? colors.textTertiary : (active ? colors.primary : colors.textSecondary)} />
     </button>
   )
 
   // If modal is not open, render nothing
-  if (!isOpen || !selectedEmail) {
+  if (!isOpen || !activeEmail) {
     return null
   }
 
-  const currentEmail = selectedEmail
-  const displayEmails = showAllMessages ? [currentEmail, ...threadEmails] : [currentEmail]
-  const hasThread = currentEmail.threadId && threadEmails.length > 0
-  const currentIndex = 0
+  const displayEmails = showAllMessages ? allThreadEmails : [activeEmail]
+  const hasThread = activeEmail.threadId && threadEmails.length > 0
 
-  // Extract sender name/email
-  const senderName = currentEmail.senderName || 'Unknown'
-  const senderEmail = currentEmail.senderEmail
-  const senderInitial = senderName.charAt(0).toUpperCase()
-
-  const avatarColor = '#1a73e8' // Use consistent color like Gmail
+  // Extract sender name/email from active email
+  const senderName = activeEmail.senderName || 'Unknown'
+  const senderEmail = activeEmail.senderEmail
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -404,7 +481,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
             <ToolbarButton Icon={ArchiveIcon} label="Archive" onClick={handleArchive} />
             <ToolbarButton Icon={ClockIcon} label="Snooze" onClick={handleSnooze} />
             <ToolbarButton Icon={TrashIcon} label="Delete" onClick={handleDelete} />
-            <ToolbarButton Icon={MailIcon} label="Mark as unread" onClick={handleToggleRead} active={!currentEmail.isRead} />
+            <ToolbarButton Icon={MailIcon} label="Mark as unread" onClick={handleToggleRead} active={!activeEmail.isRead} />
             <ToolbarButton Icon={MoveIcon} label="Move to" onClick={handleMove} />
             <ToolbarButton Icon={DotsIcon} label="More options" onClick={() => {}} />
           </div>
@@ -412,25 +489,28 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
           {/* Right: Pagination & Actions */}
           <div className="flex items-center gap-1">
             <span className="text-xs mr-2" style={{ color: colors.textTertiary }}>
-              {currentEmailIndex + 1} of {totalEmails}
+              {activeEmailIndex + 1} of {allThreadEmails.length}
             </span>
-            <ToolbarButton Icon={ChevronLeftIcon} label="Older" onClick={() => {}} />
-            <ToolbarButton Icon={ChevronRightIcon} label="Newer" onClick={() => {}} />
-            <button
-              className="p-2 rounded-full transition-colors"
-              style={{
-                backgroundColor: 'transparent',
-                color: colors.textSecondary,
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              title="More options"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-              </svg>
-            </button>
+            <ToolbarButton
+              Icon={ChevronLeftIcon}
+              label="Older"
+              onClick={handlePrevEmail}
+              active={activeEmailIndex > 0}
+              disabled={activeEmailIndex <= 0}
+            />
+            <ToolbarButton
+              Icon={ChevronRightIcon}
+              label="Newer"
+              onClick={handleNextEmail}
+              active={activeEmailIndex < allThreadEmails.length - 1}
+              disabled={activeEmailIndex >= allThreadEmails.length - 1}
+            />
+            <ToolbarButton
+              Icon={DotsIcon}
+              label={showAllMessages ? 'Single view' : 'Show all'}
+              onClick={handleToggleView}
+              active={showAllMessages}
+            />
             <ToolbarButton Icon={CloseIcon} label="Close" onClick={handleClose} />
           </div>
         </div>
@@ -438,269 +518,313 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
         {/* Email Content */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-4xl mx-auto">
-            {/* Subject + Action Buttons */}
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <h1 className="text-[22px] font-normal flex-1" style={{ color: colors.textPrimary }}>
-                {currentEmail.subject || '(No subject)'}
-              </h1>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full cursor-pointer"
-                  style={{
-                    color: colors.textSecondary,
-                    backgroundColor: colors.divider,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                >
-                  Inbox
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill={colors.textTertiary}>
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </span>
-                <button
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  title="Print"
-                >
-                  <PrintIcon color={colors.textSecondary} />
-                </button>
-                <button
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  title="Open in new window"
-                >
-                  <OpenIcon color={colors.textSecondary} />
-                </button>
-              </div>
-            </div>
+            {/* Single email view or all messages */}
+            {displayEmails.map((email, idx) => {
+              const isActive = email.id === activeEmail.id
+              const senderName = email.senderName || email.senderEmail.split('@')[0] || 'Unknown'
+              const senderEmail = email.senderEmail
 
-            {/* Sender Info */}
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-start gap-4">
-                {/* Avatar with Supabase-style placeholder */}
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: colors.surfaceHover }}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill={colors.textTertiary}>
-                    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
-                  </svg>
-                </div>
+              return (
+                <div key={email.id} className={idx > 0 ? 'mt-8 pt-8 border-t' : ''} style={{ borderColor: colors.divider }}>
+                  {/* Subject + Action Buttons (only for active email) */}
+                  {isActive && (
+                    <>
+                      <div className="flex items-start justify-between gap-4 mb-6">
+                        <h1 className="text-[22px] font-normal flex-1" style={{ color: colors.textPrimary }}>
+                          {email.subject || '(No subject)'}
+                        </h1>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full cursor-pointer"
+                            style={{
+                              color: colors.textSecondary,
+                              backgroundColor: colors.divider,
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                          >
+                            Inbox
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill={colors.textTertiary}>
+                              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                          </span>
+                          <button
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="Print"
+                          >
+                            <PrintIcon color={colors.textSecondary} />
+                          </button>
+                          <button
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="Open in new window"
+                          >
+                            <OpenIcon color={colors.textSecondary} />
+                          </button>
+                        </div>
+                      </div>
 
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>{senderEmail}</span>
-                  </div>
-                  <button
-                    onClick={() => setShowToDetails(s => !s)}
-                    className="flex items-center gap-1 text-sm hover:underline bg-none border-none cursor-pointer p-0"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    <span>to me</span>
-                    <ChevronDownIcon color={colors.textSecondary} />
-                  </button>
+                      {/* Sender Info */}
+                      <div className="flex items-start justify-between mb-6">
+                        <div className="flex items-start gap-4">
+                          {/* Avatar */}
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: colors.surfaceHover }}
+                          >
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill={colors.textTertiary}>
+                              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+                            </svg>
+                          </div>
 
-                  {showToDetails && (
-                    <div className="mt-2 text-xs p-3 rounded-lg" style={{ lineHeight: 1.8, backgroundColor: colors.selected, color: colors.textSecondary }}>
-                      <div><strong>from:</strong> {senderEmail}</div>
-                      <div><strong>to:</strong> sternmedafrika1@gmail.com</div>
-                      <div><strong>date:</strong> {formatDate(currentEmail.receivedAt)}</div>
-                      <div><strong>subject:</strong> {currentEmail.subject || '(No subject)'}</div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>{senderEmail}</span>
+                            </div>
+                            <button
+                              onClick={() => setShowToDetails(s => !s)}
+                              className="flex items-center gap-1 text-sm hover:underline bg-none border-none cursor-pointer p-0"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              <span>to me</span>
+                              <ChevronDownIcon color={colors.textSecondary} />
+                            </button>
+
+                            {showToDetails && (
+                              <div className="mt-2 text-xs p-3 rounded-lg" style={{ lineHeight: 1.8, backgroundColor: colors.selected, color: colors.textSecondary }}>
+                                <div><strong>from:</strong> {senderEmail}</div>
+                                <div><strong>to:</strong> sternmedafrika1@gmail.com</div>
+                                <div><strong>date:</strong> {formatDate(email.receivedAt)}</div>
+                                <div><strong>subject:</strong> {email.subject || '(No subject)'}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-xs mr-2" style={{ color: colors.textSecondary }}>
+                            {formatDate(email.receivedAt)}
+                          </span>
+                          <button
+                            onClick={handleToggleStar}
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title={email.isStarred ? 'Remove star' : 'Add star'}
+                          >
+                            <StarIcon filled={email.isStarred} color={email.isStarred ? colors.accent : colors.textTertiary} />
+                          </button>
+                          <button
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="Emoji reaction"
+                          >
+                            <EmojiIcon color={colors.textTertiary} />
+                          </button>
+                          <button
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onClick={handleReply}
+                            title="Reply"
+                          >
+                            <ReplyIcon color={colors.textSecondary} />
+                          </button>
+                          <button
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            onClick={handleForward}
+                            title="Forward"
+                          >
+                            <ForwardIcon color={colors.textSecondary} />
+                          </button>
+                          <button
+                            className="p-2 rounded-full transition-colors"
+                            style={{ backgroundColor: 'transparent' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="More"
+                          >
+                            <MenuIcon color={colors.textSecondary} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Email Body */}
+                      <div className="pl-14">
+                        <div className="text-[15px] leading-relaxed max-w-[580px]" style={{ color: colors.textPrimary }}>
+                          {email.bodyHtml ? (
+                            <div
+                              className="email-body"
+                              dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
+                            />
+                          ) : (
+                            <pre className="whitespace-pre-wrap font-sans text-base">
+                              {email.bodyText || ''}
+                            </pre>
+                          )}
+                        </div>
+
+                        {/* Attachments */}
+                        {email.attachments && email.attachments.length > 0 && (
+                          <div className="mt-6 border-t pt-4" style={{ borderColor: colors.divider }}>
+                            <h3 className="text-sm font-medium mb-3" style={{ color: colors.textSecondary }}>
+                              Attachments ({email.attachments.length})
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              {email.attachments.map((att: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-3 p-3 rounded-lg border"
+                                  style={{
+                                    backgroundColor: colors.searchBackground,
+                                    borderColor: colors.divider,
+                                  }}
+                                >
+                                  <div className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: colors.primary + '20' }}>
+                                    <svg
+                                      className="w-5 h-5"
+                                      style={{ color: colors.primary }}
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01-.293.707V19a2 2 0 01-2 2z"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium truncate" style={{ color: colors.textPrimary }}>
+                                      {att.filename}
+                                    </p>
+                                    <p className="text-xs" style={{ color: colors.textTertiary }}>
+                                      {(att.size / 1024).toFixed(1)} KB
+                                    </p>
+                                  </div>
+                                  {att.url && (
+                                    <a
+                                      href={att.url}
+                                      download={att.filename}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm flex-shrink-0"
+                                      style={{ color: colors.primary }}
+                                    >
+                                      Download
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Reply/Forward Bar */}
+                      <div className="mt-8 pt-4">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={handleReply}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+                            style={{
+                              backgroundColor: colors.surface,
+                              border: `1px solid ${colors.divider}`,
+                              color: colors.textPrimary,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = colors.surfaceHover
+                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = colors.surface
+                              e.currentTarget.style.boxShadow = 'none'
+                            }}
+                          >
+                            <ReplyIcon color={colors.primary} />
+                            Reply
+                          </button>
+                          <button
+                            onClick={handleForward}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+                            style={{
+                              backgroundColor: colors.surface,
+                              border: `1px solid ${colors.divider}`,
+                              color: colors.textPrimary,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = colors.surfaceHover
+                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = colors.surface
+                              e.currentTarget.style.boxShadow = 'none'
+                            }}
+                          >
+                            <ForwardIcon color={colors.primary} />
+                            Forward
+                          </button>
+                          <button
+                            className="p-2.5 border rounded-full transition-colors"
+                            style={{
+                              borderColor: colors.divider,
+                              backgroundColor: colors.surface,
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.surface}
+                            title="Add emoji reaction"
+                          >
+                            <EmojiIcon color={colors.textTertiary} />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Non-active email (in "show all" mode) - simplified view */}
+                  {!isActive && (
+                    <div className="py-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-medium text-xs flex-shrink-0"
+                          style={{ backgroundColor: colors.primary + '80' }}
+                        >
+                          {senderName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                            {senderName}
+                          </p>
+                          <p className="text-xs" style={{ color: colors.textSecondary }}>
+                            {senderEmail}
+                          </p>
+                        </div>
+                        <span className="text-xs" style={{ color: colors.textTertiary }}>
+                          {formatDate(email.receivedAt)}
+                        </span>
+                      </div>
+                      <div className="pl-11">
+                        <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                          {email.bodyText?.substring(0, 150)}...
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="text-xs mr-2" style={{ color: colors.textSecondary }}>
-                  {formatDate(currentEmail.receivedAt)}
-                </span>
-                <button
-                  onClick={handleToggleStar}
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  title={currentEmail.isStarred ? 'Remove star' : 'Add star'}
-                >
-                  <StarIcon filled={currentEmail.isStarred} color={currentEmail.isStarred ? colors.accent : colors.textTertiary} />
-                </button>
-                <button
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  title="Emoji reaction"
-                >
-                  <EmojiIcon color={colors.textTertiary} />
-                </button>
-                <button
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  onClick={handleReply}
-                  title="Reply"
-                >
-                  <ReplyIcon color={colors.textSecondary} />
-                </button>
-                <button
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  onClick={handleForward}
-                  title="Forward"
-                >
-                  <ForwardIcon color={colors.textSecondary} />
-                </button>
-                <button
-                  className="p-2 rounded-full transition-colors"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.divider}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  title="More"
-                >
-                  <MenuIcon color={colors.textSecondary} />
-                </button>
-              </div>
-            </div>
-
-            {/* Email Body */}
-            <div className="pl-14">
-              <div className="text-[15px] leading-relaxed max-w-[580px]" style={{ color: colors.textPrimary }}>
-                {currentEmail.bodyHtml ? (
-                  <div
-                    className="email-body"
-                    dangerouslySetInnerHTML={{ __html: currentEmail.bodyHtml }}
-                  />
-                ) : (
-                  <pre className="whitespace-pre-wrap font-sans text-base">
-                    {currentEmail.bodyText || ''}
-                  </pre>
-                )}
-              </div>
-
-              {/* Attachments */}
-              {currentEmail.attachments && currentEmail.attachments.length > 0 && (
-                <div className="mt-6 border-t pt-4" style={{ borderColor: colors.divider }}>
-                  <h3 className="text-sm font-medium mb-3" style={{ color: colors.textSecondary }}>
-                    Attachments ({currentEmail.attachments.length})
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {currentEmail.attachments.map((att: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-3 p-3 rounded-lg border"
-                        style={{
-                          backgroundColor: colors.searchBackground,
-                          borderColor: colors.divider,
-                        }}
-                      >
-                        <div className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: colors.primary + '20' }}>
-                          <svg
-                            className="w-5 h-5"
-                            style={{ color: colors.primary }}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01-.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate" style={{ color: colors.textPrimary }}>
-                            {att.filename}
-                          </p>
-                          <p className="text-xs" style={{ color: colors.textTertiary }}>
-                            {(att.size / 1024).toFixed(1)} KB
-                          </p>
-                        </div>
-                        {att.url && (
-                          <a
-                            href={att.url}
-                            download={att.filename}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm flex-shrink-0"
-                            style={{ color: colors.primary }}
-                          >
-                            Download
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Reply/Forward Bar */}
-            <div className="mt-8 pt-4">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleReply}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
-                  style={{
-                    backgroundColor: colors.surface,
-                    border: `1px solid ${colors.divider}`,
-                    color: colors.textPrimary,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = colors.surfaceHover
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = colors.surface
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  <ReplyIcon color={colors.primary} />
-                  Reply
-                </button>
-                <button
-                  onClick={handleForward}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
-                  style={{
-                    backgroundColor: colors.surface,
-                    border: `1px solid ${colors.divider}`,
-                    color: colors.textPrimary,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = colors.surfaceHover
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = colors.surface
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  <ForwardIcon color={colors.primary} />
-                  Forward
-                </button>
-                <button
-                  className="p-2.5 border rounded-full transition-colors"
-                  style={{
-                    borderColor: colors.divider,
-                    backgroundColor: colors.surface,
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.surface}
-                  title="Add emoji reaction"
-                >
-                  <EmojiIcon color={colors.textTertiary} />
-                </button>
-              </div>
-            </div>
+              )
+            })}
           </div>
         </div>
       </div>
