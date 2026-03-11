@@ -38,6 +38,7 @@ import { useTheme } from '../../contexts/ThemeContext'
 import useConfirmationModal from '../shared/ui/useConfirmationModal'
 import ConfirmationModal from '../shared/ui/ConfirmationModal'
 import { useToastSuccess, useToastError } from '../shared/ui'
+import { generateEmail } from '../../services/email-template.service'
 
 // ============================================================================
 // TYPES
@@ -300,7 +301,7 @@ export default function ComposeModal({
         recipientEmail: to[0] || '',
         cc, bcc, subject,
         bodyText: body,
-        bodyHtml: body.replace(/\n/g, '<br>'),
+        bodyHtml: body.replace(/\n/g, '<br>'), // Simple HTML for draft preview
         attachments: allAttachments,
       }
 
@@ -360,11 +361,14 @@ export default function ComposeModal({
 
       const allAttachments = [...existing, ...uploaded]
 
+      // Apply professional branded template
+      const { bodyHtml, bodyText } = generateEmail(body, subject)
+
       await emailOutboundService.sendEmail(emailAliasId, {
         aliasId: emailAliasId,
         recipientEmail: to[0], cc, bcc, subject,
-        bodyText: body,
-        bodyHtml: body.replace(/\n/g, '<br>'),
+        bodyText,
+        bodyHtml,
         attachments: allAttachments,
       })
 
