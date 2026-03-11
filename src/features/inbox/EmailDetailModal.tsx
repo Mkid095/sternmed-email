@@ -182,6 +182,12 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
   const pendingRequestIdRef = useRef<string | null>(null)
+  const lastFetchTimeRef = useRef<number>(0)
+  const DEBOUNCE_MS = 100
+
+  // Thread cache: threadId -> { data, timestamp }
+  const threadCacheRef = useRef<Map<string, { emails: any[]; timestamp: number }>>(new Map())
+  const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
   /**
    * Fetch full thread when modal opens
@@ -193,6 +199,13 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       if (!isOpen || !selectedEmail) {
         return
       }
+
+      // Debounce: prevent rapid successive calls
+      const now = Date.now()
+      if (now - lastFetchTimeRef.current < DEBOUNCE_MS) {
+        return
+      }
+      lastFetchTimeRef.current = now
 
       // Cancel any pending request
       if (abortControllerRef.current) {
@@ -208,18 +221,46 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       pendingRequestIdRef.current = requestId
 
       setShowAllMessages(false)
-      setThreadEmails([])
       setActiveEmail(selectedEmail)
 
+      // Check cache first if we have a threadId
       if (selectedEmail.threadId && selectedEmail.threadId !== selectedEmail.id) {
+        const cached = threadCacheRef.current.get(selectedEmail.threadId)
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+          // Use cached data
+          const sorted = cached.emails.sort((a, b) =>
+            new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
+          )
+          const otherEmails = sorted.filter(e => e.id !== selectedEmail.id)
+          setThreadEmails(otherEmails)
+          setLoadingThread(false)
+          return
+        }
+
         setLoadingThread(true)
+
         try {
           // Check if this request is still the latest one
           if (pendingRequestIdRef.current !== requestId) {
             return
           }
 
+          // Add a small delay to further reduce rapid requests
+          await new Promise((resolve, reject) => {
+            if (abortControllerRef.current?.signal.aborted) {
+              reject(new DOMException('Aborted', 'AbortError'))
+            } else {
+              setTimeout(resolve, 10)
+            }
+          })
+
           const fullThread = await emailInboundService.getThread(selectedEmail.threadId)
+
+          // Cache the result
+          threadCacheRef.current.set(selectedEmail.threadId, {
+            emails: fullThread,
+            timestamp: Date.now(),
+          })
 
           // Only update state if this is still the latest request and component is mounted
           if (isMountedRef.current && pendingRequestIdRef.current === requestId) {
@@ -232,7 +273,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
           }
         } catch (error: any) {
           // Ignore abort errors - they're expected when canceling
-          if (error.name === 'AbortError') {
+          if (error.name === 'AbortError' || error.message === 'Aborted') {
             return
           }
           console.error('Failed to fetch thread:', error)
@@ -244,6 +285,10 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
             setLoadingThread(false)
           }
         }
+      } else {
+        // No thread needed, just set the single email
+        setThreadEmails([])
+        setLoadingThread(false)
       }
     }
 
@@ -370,6 +415,14 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
       showError('Failed to delete email')
     }
   }, [activeEmail, showSuccess, showError, onDelete, handleClose])
+
+  // Clear thread cache on unmount or when appropriate
+  useEffect(() => {
+    return () => {
+      // Optionally clear cache on unmount - but keep it for session reuse
+      // threadCacheRef.current.clear()
+    }
+  }, [])
 
   /**
    * Toggle star status
