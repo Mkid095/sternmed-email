@@ -1,3 +1,12 @@
+/**
+ * Settings View Component
+ *
+ * Professional settings page with proper spacing.
+ * Manages user profile and email HTML template designs.
+ *
+ * @module features/settings/SettingsView
+ */
+
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
@@ -8,23 +17,16 @@ import ConfirmationModal from '../shared/ui/ConfirmationModal'
 import { useTemplateStore, type EmailTemplate } from './useTemplateStore'
 import {
   User,
-  Lock,
   Key,
   FileText,
   Plus,
   Trash2,
   Edit,
   Eye,
-  Mail,
   ChevronRight,
+  Mail,
 } from 'lucide-react'
 import { CloseIcon } from '../../components/icons'
-
-const COMPANY_LOGO = 'https://res.cloudinary.com/dxb22swfg/image/upload/v1765747561/Asset_4_v5ksi6.png'
-const COMPANY_NAME = 'Sternmed Afrika'
-const COMPANY_EMAIL = 'info@sternmed.afrika'
-const COMPANY_PHONE = '+254 700 000 000'
-const COMPANY_WEBSITE = 'www.sternmed.afrika'
 
 type TabKey = 'profile' | 'templates'
 
@@ -43,11 +45,11 @@ export default function SettingsView() {
   const [templateForm, setTemplateForm] = useState({
     name: '',
     subject: '',
-    body: '',
-    category: 'general'
+    bodyHtml: '',
+    bodyText: '',
+    category: 'general',
   })
 
-  // Use template store for shared template state
   const { templates, fetchTemplates, addTemplate, updateTemplate, deleteTemplate } = useTemplateStore()
 
   useEffect(() => {
@@ -72,42 +74,33 @@ export default function SettingsView() {
   }, [fetchTemplates])
 
   const handleSaveTemplate = async () => {
-    if (!templateForm.name || !templateForm.subject || !templateForm.body) {
-      alert('Please fill in all fields')
+    if (!templateForm.name || !templateForm.subject || !templateForm.bodyHtml) {
+      alert('Please fill in all required fields (Name, Subject, HTML Body)')
       return
     }
-
-    const bodyWithBranding = templateForm.body
-      .replace(/\{\{logo\}\}/g, COMPANY_LOGO)
-      .replace(/\{\{company_name\}\}/g, COMPANY_NAME)
-      .replace(/\{\{company_email\}\}/g, COMPANY_EMAIL)
-      .replace(/\{\{company_phone\}\}/g, COMPANY_PHONE)
-      .replace(/\{\{company_website\}\}/g, COMPANY_WEBSITE)
-
-    const htmlBody = convertToHtml(bodyWithBranding)
 
     try {
       if (editingTemplate) {
         await updateTemplate(editingTemplate.id, {
           name: templateForm.name,
           subject: templateForm.subject,
-          bodyHtml: htmlBody,
-          bodyText: templateForm.body,
+          bodyHtml: templateForm.bodyHtml,
+          bodyText: templateForm.bodyText || templateForm.bodyHtml.replace(/<[^>]*>/g, '').substring(0, 500),
           category: templateForm.category,
         })
       } else {
         await addTemplate({
           name: templateForm.name,
           subject: templateForm.subject,
-          bodyHtml: htmlBody,
-          bodyText: templateForm.body,
+          bodyHtml: templateForm.bodyHtml,
+          bodyText: templateForm.bodyText || templateForm.bodyHtml.replace(/<[^>]*>/g, '').substring(0, 500),
           category: templateForm.category,
         })
       }
 
       setShowTemplateModal(false)
       setEditingTemplate(null)
-      setTemplateForm({ name: '', subject: '', body: '', category: 'general' })
+      setTemplateForm({ name: '', subject: '', bodyHtml: '', bodyText: '', category: 'general' })
     } catch (error) {
       console.error('Failed to save template:', error)
       alert('Failed to save template')
@@ -137,61 +130,28 @@ export default function SettingsView() {
     setTemplateForm({
       name: template.name,
       subject: template.subject,
-      body: template.bodyText,
+      bodyHtml: template.bodyHtml,
+      bodyText: template.bodyText || '',
       category: template.category,
     })
     setShowTemplateModal(true)
   }
 
-  const convertToHtml = (text: string): string => {
-    const lines = text.split('\n')
-    let html = ''
-    let inList = false
-
-    for (const line of lines) {
-      if (line.startsWith('• ') || line.startsWith('- ')) {
-        if (!inList) {
-          html += '<ul>'
-          inList = true
-        }
-        html += `<li>${line.substring(2)}</li>`
-      } else {
-        if (inList) {
-          html += '</ul>'
-          inList = false
-        }
-        if (line.trim()) {
-          html += `<p>${line}</p>`
-        }
-      }
-    }
-
-    if (inList) html += '</ul>'
-    return html
-  }
-
-  const insertVariable = (variable: string) => {
-    setTemplateForm({
-      ...templateForm,
-      body: templateForm.body + `{{${variable}}}`
-    })
-  }
-
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <div className="p-6 border-b" style={{ borderColor: colors.divider }}>
+      <div className="p-8 border-b" style={{ borderColor: colors.divider }}>
         <div className="flex items-center justify-between">
           <div>
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-sm mb-2"
+              className="flex items-center gap-2 text-sm mb-3"
               style={{ color: colors.textSecondary }}
             >
               <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
               Back
             </button>
-            <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+            <h1 className="text-3xl font-bold" style={{ color: colors.textPrimary }}>
               Settings
             </h1>
           </div>
@@ -200,31 +160,27 @@ export default function SettingsView() {
 
       {/* Tabs */}
       <div className="border-b" style={{ borderColor: colors.divider }}>
-        <div className="flex" style={{ marginLeft: '24px' }}>
+        <div className="flex" style={{ paddingLeft: '32px' }}>
           <button
             onClick={() => setActiveTab('profile')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'profile'
-                ? 'border-b-2'
-                : 'border-b-0'
+            className={`py-4 px-6 font-medium text-base transition-colors relative ${
+              activeTab === 'profile' ? 'font-semibold' : ''
             }`}
             style={{
-              borderBottomColor: colors.primary,
               color: activeTab === 'profile' ? colors.primary : colors.textSecondary,
+              borderBottom: activeTab === 'profile' ? `2px solid ${colors.primary}` : '2px solid transparent',
             }}
           >
             Profile
           </button>
           <button
             onClick={() => setActiveTab('templates')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'templates'
-                ? 'border-b-2'
-                : 'border-b-0'
+            className={`py-4 px-6 font-medium text-base transition-colors relative ${
+              activeTab === 'templates' ? 'font-semibold' : ''
             }`}
             style={{
-              borderBottomColor: colors.primary,
               color: activeTab === 'templates' ? colors.primary : colors.textSecondary,
+              borderBottom: activeTab === 'templates' ? `2px solid ${colors.primary}` : '2px solid transparent',
             }}
           >
             Email Templates
@@ -233,62 +189,65 @@ export default function SettingsView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl mx-auto">
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-5xl mx-auto">
           {activeTab === 'profile' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Profile Section */}
-              <div className="rounded-lg p-6" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
-                <div className="flex items-center gap-3 mb-6">
-                  <User size={24} style={{ color: colors.textSecondary }} />
-                  <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Profile</h2>
+              <section className="rounded-xl p-8" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
+                <div className="flex items-center gap-4 mb-6">
+                  <User size={28} style={{ color: colors.primary }} />
+                  <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Profile</h2>
                 </div>
 
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
-                      Email
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                      Email Address
                     </label>
-                    <p style={{ color: colors.textPrimary }}>{user?.email}</p>
+                    <p className="text-base" style={{ color: colors.textPrimary }}>{user?.email}</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                       Role
                     </label>
-                    <p className="capitalize" style={{ color: colors.textPrimary }}>{user?.role}</p>
+                    <p className="text-base capitalize" style={{ color: colors.textPrimary }}>{user?.role}</p>
                   </div>
                 </div>
-              </div>
+              </section>
 
               {/* Email Alias Section */}
-              <div className="rounded-lg p-6" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
-                <div className="flex items-center gap-3 mb-6">
-                  <Key size={24} style={{ color: colors.textSecondary }} />
-                  <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Email Alias</h2>
+              <section className="rounded-xl p-8" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
+                <div className="flex items-center gap-4 mb-6">
+                  <Mail size={28} style={{ color: colors.primary }} />
+                  <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Email Alias</h2>
                 </div>
 
                 {loading ? (
                   <p style={{ color: colors.textSecondary }}>Loading...</p>
                 ) : alias ? (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
-                        Email Address
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                        Alias Email
                       </label>
-                      <p className="font-medium" style={{ color: colors.textPrimary }}>{alias.alias_email}</p>
+                      <p className="text-base font-medium" style={{ color: colors.textPrimary }}>{alias.alias_email}</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                         Display Name
                       </label>
-                      <p style={{ color: colors.textPrimary }}>{alias.display_name}</p>
+                      <p className="text-base" style={{ color: colors.textPrimary }}>{alias.display_name}</p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                        Status
+                      </label>
                       <span
-                        className="px-2 py-1 rounded-full text-xs font-medium"
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
                         style={{
                           backgroundColor: alias.is_active ? '#10b98120' : '#ef444420',
                           color: alias.is_active ? '#10b981' : '#ef4444',
@@ -301,43 +260,48 @@ export default function SettingsView() {
                 ) : (
                   <p style={{ color: colors.textSecondary }}>No email alias configured</p>
                 )}
-              </div>
+              </section>
 
-              {/* Actions */}
-              <div className="rounded-lg p-6" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
-                <div className="flex items-center gap-3 mb-6">
-                  <Lock size={24} style={{ color: colors.textSecondary }} />
-                  <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Actions</h2>
+              {/* Actions Section */}
+              <section className="rounded-xl p-8" style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}>
+                <div className="flex items-center gap-4 mb-6">
+                  <Key size={28} style={{ color: colors.primary }} />
+                  <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Actions</h2>
                 </div>
 
                 <button
                   onClick={logout}
-                  className="w-full text-left px-4 py-3 rounded-lg transition-colors"
-                  style={{ color: '#ef4444' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className="w-full md:w-auto px-6 py-3 rounded-lg font-medium transition-colors text-left md:text-center"
+                  style={{ color: '#ef4444', backgroundColor: colors.surfaceHover }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.divider)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.surfaceHover)}
                 >
                   Sign Out
                 </button>
-              </div>
+              </section>
             </div>
           )}
 
           {activeTab === 'templates' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Header */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FileText size={24} style={{ color: colors.textSecondary }} />
-                  <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Email Templates</h2>
+                <div className="flex items-center gap-4">
+                  <FileText size={28} style={{ color: colors.primary }} />
+                  <div>
+                    <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Email Templates</h2>
+                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                      Manage HTML email design templates with branding
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => {
                     setEditingTemplate(null)
-                    setTemplateForm({ name: '', subject: '', body: '', category: 'general' })
+                    setTemplateForm({ name: '', subject: '', bodyHtml: '', bodyText: '', category: 'general' })
                     setShowTemplateModal(true)
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors text-white"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all text-white"
                   style={{ backgroundColor: colors.primary }}
                 >
                   <Plus size={16} />
@@ -345,69 +309,81 @@ export default function SettingsView() {
                 </button>
               </div>
 
-              {/* Templates List */}
-              <div className="space-y-4">
+              {/* Templates Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {templates.map((template) => (
                   <div
                     key={template.id}
-                    className="rounded-lg p-6"
-                    style={{
-                      backgroundColor: colors.surface,
-                      border: `1px solid ${colors.divider}`,
-                    }}
+                    className="rounded-xl overflow-hidden flex flex-col"
+                    style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <h3 className="font-semibold" style={{ color: colors.textPrimary }}>{template.name}</h3>
+                    {/* Template Header */}
+                    <div className="p-5 border-b" style={{ borderColor: colors.divider }}>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <h3 className="font-semibold text-base" style={{ color: colors.textPrimary }}>{template.name}</h3>
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           {template.isDefault && (
                             <span
-                              className="text-xs px-2 py-0.5 rounded"
+                              className="text-xs px-2 py-1 rounded-full"
                               style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
                             >
                               System
                             </span>
                           )}
                           <span
-                            className="text-xs px-2 py-0.5 rounded capitalize"
+                            className="text-xs px-2 py-1 rounded-full capitalize"
                             style={{ backgroundColor: colors.accent + '20', color: colors.accent }}
                           >
                             {template.category}
                           </span>
                         </div>
-                        <p className="text-sm mb-2" style={{ color: colors.textSecondary }}>
-                          Subject: {template.subject}
-                        </p>
-                        <p className="text-xs truncate" style={{ color: colors.textTertiary }}>
-                          {template.bodyHtml.replace(/<[^>]*>/g, '').substring(0, 100)}...
-                        </p>
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
+                      <p className="text-sm mb-0" style={{ color: colors.textSecondary }}>
+                        <span className="font-medium">Subject:</span> {template.subject}
+                      </p>
+                    </div>
+
+                    {/* Template Preview */}
+                    <div className="flex-1 p-5 bg-gray-50">
+                      <p className="text-xs mb-2" style={{ color: colors.textTertiary }}>Preview:</p>
+                      <div
+                        className="rounded border bg-white overflow-hidden"
+                        style={{ borderColor: colors.divider, maxHeight: '200px' }}
+                        dangerouslySetInnerHTML={{ __html: template.bodyHtml }}
+                      />
+                    </div>
+
+                    {/* Template Actions */}
+                    <div className="p-4 border-t flex items-center justify-between" style={{ borderColor: colors.divider }}>
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => setPreviewTemplate(template)}
-                          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                          style={{ color: colors.textSecondary }}
-                          title="Preview"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all"
+                          style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
+                          title="Preview full template"
                         >
-                          <Eye size={16} />
+                          <Eye size={14} />
+                          Preview
                         </button>
                         {!template.isDefault && (
                           <>
                             <button
                               onClick={() => handleEditTemplate(template)}
-                              className="p-2 rounded-lg hover:bg-blue-100 transition-colors"
-                              style={{ color: colors.primary }}
-                              title="Edit"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all"
+                              style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
+                              title="Edit template"
                             >
-                              <Edit size={16} />
+                              <Edit size={14} />
+                              Edit
                             </button>
                             <button
                               onClick={() => handleDeleteTemplate(template.id)}
-                              className="p-2 rounded-lg hover:bg-red-100 transition-colors"
-                              style={{ color: '#ef4444' }}
-                              title="Delete"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all"
+                              style={{ backgroundColor: '#ef444420', color: '#ef4444' }}
+                              title="Delete template"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
+                              Delete
                             </button>
                           </>
                         )}
@@ -417,19 +393,28 @@ export default function SettingsView() {
                 ))}
 
                 {templates.length === 0 && (
-                  <div
-                    className="rounded-lg p-12 text-center"
-                    style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}
-                  >
-                    <Mail size={64} className="mx-auto mb-4 opacity-30" style={{ color: colors.textSecondary }} />
-                    <p className="mb-4" style={{ color: colors.textSecondary }}>No email templates yet</p>
-                    <button
-                      onClick={() => setShowTemplateModal(true)}
-                      className="font-medium hover:underline"
-                      style={{ color: colors.primary }}
+                  <div className="col-span-1 md:col-span-2">
+                    <div
+                      className="rounded-xl p-16 text-center"
+                      style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}
                     >
-                      Create your first template →
-                    </button>
+                      <Mail size={80} className="mx-auto mb-6 opacity-30" style={{ color: colors.textSecondary }} />
+                      <h3 className="text-lg font-medium mb-3" style={{ color: colors.textPrimary }}>
+                        No email templates yet
+                      </h3>
+                      <p className="mb-6 max-w-md mx-auto" style={{ color: colors.textSecondary }}>
+                        Create HTML email design templates with your branding.
+                        These templates wrap outgoing emails with professional headers and footers.
+                      </p>
+                      <button
+                        onClick={() => setShowTemplateModal(true)}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium text-white transition-all"
+                        style={{ backgroundColor: colors.primary }}
+                      >
+                        <Plus size={16} />
+                        Create Your First Template
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -438,7 +423,7 @@ export default function SettingsView() {
         </div>
       </div>
 
-      {/* Template Modal */}
+      {/* Template Edit Modal */}
       {showTemplateModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -446,27 +431,38 @@ export default function SettingsView() {
           onClick={(e) => e.target === e.currentTarget && setShowTemplateModal(false)}
         >
           <div
-            className="rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}
           >
-            <div className="p-6 border-b" style={{ borderColor: colors.divider }}>
+            <div className="p-6 border-b flex items-center justify-between" style={{ borderColor: colors.divider }}>
               <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>
-                {editingTemplate ? 'Edit Template' : 'New Email Template'}
+                {editingTemplate ? 'Edit Email Template' : 'New Email Template'}
               </h2>
+              <button
+                onClick={() => {
+                  setShowTemplateModal(false)
+                  setEditingTemplate(null)
+                  setTemplateForm({ name: '', subject: '', bodyHtml: '', bodyText: '', category: 'general' })
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                style={{ color: colors.textSecondary }}
+              >
+                <CloseIcon size={20} />
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
-                    Template Name
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                    Template Name *
                   </label>
                   <input
                     type="text"
                     value={templateForm.name}
                     onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
-                    placeholder="Welcome Email"
-                    className="w-full px-4 py-2 rounded-lg outline-none"
+                    placeholder="e.g., Standard Branded Email"
+                    className="w-full px-4 py-2.5 rounded-lg outline-none"
                     style={{
                       backgroundColor: colors.searchBackground,
                       color: colors.textPrimary,
@@ -475,13 +471,13 @@ export default function SettingsView() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                     Category
                   </label>
                   <select
                     value={templateForm.category}
                     onChange={(e) => setTemplateForm({ ...templateForm, category: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg outline-none"
+                    className="w-full px-4 py-2.5 rounded-lg outline-none"
                     style={{
                       backgroundColor: colors.searchBackground,
                       color: colors.textPrimary,
@@ -489,105 +485,91 @@ export default function SettingsView() {
                     }}
                   >
                     <option value="general">General</option>
-                    <option value="welcome">Welcome</option>
-                    <option value="quote">Quote</option>
-                    <option value="invoice">Invoice</option>
-                    <option value="follow-up">Follow-up</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="transactional">Transactional</option>
+                    <option value="notification">Notification</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
-                  Subject
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                  Default Subject Line *
                 </label>
                 <input
                   type="text"
                   value={templateForm.subject}
                   onChange={(e) => setTemplateForm({ ...templateForm, subject: e.target.value })}
-                  placeholder="Welcome to {{company_name}}"
-                  className="w-full px-4 py-2 rounded-lg outline-none"
+                  placeholder="e.g., Your Order Confirmation - Sternmed Afrika"
+                  className="w-full px-4 py-2.5 rounded-lg outline-none"
                   style={{
                     backgroundColor: colors.searchBackground,
                     color: colors.textPrimary,
                     border: `1px solid ${colors.border}`,
                   }}
                 />
+                <p className="text-xs mt-2" style={{ color: colors.textTertiary }}>
+                  This subject will be used as the default for emails sent with this template.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textSecondary }}>
-                  Body Content
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
+                  HTML Body Content *
                 </label>
-                <div className="mb-2 flex flex-wrap gap-2">
-                  <span className="text-xs" style={{ color: colors.textTertiary }}>Quick variables:</span>
-                  <button
-                    type="button"
-                    onClick={() => insertVariable('name')}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
-                  >
-                    + Name
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertVariable('email')}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
-                  >
-                    + Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => insertVariable('company_name')}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
-                  >
-                    + Company
-                  </button>
-                </div>
+                <p className="text-xs mb-3" style={{ color: colors.textTertiary }}>
+                  Enter full HTML email template. Include a wrapper div with your branding.
+                </p>
                 <textarea
-                  value={templateForm.body}
-                  onChange={(e) => setTemplateForm({ ...templateForm, body: e.target.value })}
-                  placeholder={`Dear {{name}},
+                  value={templateForm.bodyHtml}
+                  onChange={(e) => setTemplateForm({ ...templateForm, bodyHtml: e.target.value })}
+                  placeholder={`<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <!-- Your header with branding -->
+  <div style="background: #1a5f7a; color: white; padding: 30px; text-align: center;">
+    <h1>Sternmed Afrika</h1>
+    <p>Medical Equipment Solutions</p>
+  </div>
 
-Welcome to {{company_name}}! We're excited to have you on board.
+  <!-- Email content will be inserted here -->
+  <div style="padding: 30px;">
+    {{content}}
+  </div>
 
-• Feature 1
-• Feature 2
-• Feature 3
-
-Best regards,
-The {{company_name}} Team`}
-                  rows={12}
-                  className="w-full px-4 py-2 rounded-lg outline-none font-mono text-sm"
+  <!-- Footer -->
+  <div style="background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p>&copy; {{current_date}} Sternmed Afrika Limited</p>
+  </div>
+</div>`}
+                  rows={20}
+                  className="w-full px-4 py-3 rounded-lg outline-none font-mono text-sm"
                   style={{
                     backgroundColor: colors.searchBackground,
                     color: colors.textPrimary,
                     border: `1px solid ${colors.border}`,
+                    fontFamily: 'monospace',
                   }}
                 />
               </div>
             </div>
 
-            <div className="p-6 border-t flex justify-end gap-3" style={{ borderColor: colors.divider }}>
+            <div className="p-6 border-t flex justify-end gap-4" style={{ borderColor: colors.divider }}>
               <button
                 onClick={() => {
                   setShowTemplateModal(false)
                   setEditingTemplate(null)
-                  setTemplateForm({ name: '', subject: '', body: '', category: 'general' })
+                  setTemplateForm({ name: '', subject: '', bodyHtml: '', bodyText: '', category: 'general' })
                 }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
                 style={{ backgroundColor: colors.searchBackground, color: colors.textSecondary }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveTemplate}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+                className="px-6 py-2.5 rounded-lg text-sm font-medium text-white transition-colors"
                 style={{ backgroundColor: colors.primary }}
               >
-                {editingTemplate ? 'Update' : 'Create'} Template
+                {editingTemplate ? 'Update Template' : 'Create Template'}
               </button>
             </div>
           </div>
@@ -602,39 +584,35 @@ The {{company_name}} Team`}
           onClick={(e) => e.target === e.currentTarget && setPreviewTemplate(null)}
         >
           <div
-            className="rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             style={{ backgroundColor: colors.surface, border: `1px solid ${colors.divider}` }}
           >
             <div className="p-6 border-b flex items-center justify-between" style={{ borderColor: colors.divider }}>
-              <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>Template Preview</h2>
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>{previewTemplate.name}</h2>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>Subject: {previewTemplate.subject}</p>
+              </div>
               <button
                 onClick={() => setPreviewTemplate(null)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                 style={{ color: colors.textSecondary }}
               >
-                <CloseIcon size={16} />
+                <CloseIcon size={20} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="mb-6 pb-6 border-b" style={{ borderColor: colors.divider }}>
-                <p className="text-sm mb-1" style={{ color: colors.textSecondary }}>Subject:</p>
-                <p className="font-medium" style={{ color: colors.textPrimary }}>{previewTemplate.subject}</p>
-              </div>
-
-              <div className="rounded-lg p-6 border" style={{ borderColor: colors.divider }}>
-                <div
-                  className="prose max-w-none"
-                  style={{ color: colors.textPrimary }}
-                  dangerouslySetInnerHTML={{ __html: previewTemplate.bodyHtml }}
-                />
-              </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-100">
+              <div
+                className="mx-auto bg-white"
+                style={{ maxWidth: '650px' }}
+                dangerouslySetInnerHTML={{ __html: previewTemplate.bodyHtml }}
+              />
             </div>
 
             <div className="p-6 border-t flex justify-end" style={{ borderColor: colors.divider }}>
               <button
                 onClick={() => setPreviewTemplate(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+                className="px-6 py-2.5 rounded-lg text-sm font-medium text-white transition-colors"
                 style={{ backgroundColor: colors.primary }}
               >
                 Close
