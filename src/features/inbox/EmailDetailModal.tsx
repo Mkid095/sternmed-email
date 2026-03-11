@@ -397,6 +397,10 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
     showSuccess('Snooze feature coming soon')
   }, [showSuccess])
 
+  const handleMoreOptions = useCallback(() => {
+    showSuccess('More options coming soon')
+  }, [showSuccess])
+
   /**
    * Toolbar button component
    */
@@ -483,7 +487,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
             <ToolbarButton Icon={TrashIcon} label="Delete" onClick={handleDelete} />
             <ToolbarButton Icon={MailIcon} label="Mark as unread" onClick={handleToggleRead} active={!activeEmail.isRead} />
             <ToolbarButton Icon={MoveIcon} label="Move to" onClick={handleMove} />
-            <ToolbarButton Icon={DotsIcon} label="More options" onClick={() => {}} />
+            <ToolbarButton Icon={DotsIcon} label="More options" onClick={handleMoreOptions} />
           </div>
 
           {/* Right: Pagination & Actions */}
