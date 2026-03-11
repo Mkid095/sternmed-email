@@ -12,14 +12,17 @@ import ComposeView from './features/compose/ComposeView'
 import SettingsView from './features/settings/SettingsView'
 import GlobalSearchView from './features/search/GlobalSearchView'
 import { useAuthStore } from './store/authStore'
+import { useTemplateStore } from './features/settings/useTemplateStore'
 
 function App() {
   const { user, loading, emailAliasId, initialize } = useAuthStore()
+  const { fetchTemplates } = useTemplateStore()
 
-  // Initialize auth on mount
+  // Initialize auth and templates on mount
   useEffect(() => {
     initialize()
-  }, [])
+    fetchTemplates().catch(console.error)
+  }, [initialize, fetchTemplates])
 
   if (loading) {
     return (
