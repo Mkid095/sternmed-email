@@ -8,70 +8,23 @@
  */
 
 import { useEffect, useCallback } from 'react'
+import {
+  ArrowLeft,
+  Trash2,
+  Reply,
+  Forward,
+  X,
+  Printer,
+  CheckCircle,
+  Mail,
+  FileText,
+  Download,
+} from 'lucide-react'
 import { useSentDetailModalStore } from './useSentDetailModalStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useToastSuccess, useToastError } from '../shared/ui'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
 import type { EmailOutbound } from '../../types'
-
-// Icon components (inline SVGs matching Gmail style)
-const ArrowLeftIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M15 18l-6-6 6-6"/>
-  </svg>
-)
-
-const TrashIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="3,6 5,6 21,6"/>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-    <line x1="10" y1="11" x2="10" y2="17"/>
-    <line x1="14" y1="11" x2="14" y2="17"/>
-  </svg>
-)
-
-const ReplyIcon = ({ color }: { color: string }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="9,14 4,9 9,4"/>
-    <path d="M20 20v-5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5"/>
-  </svg>
-)
-
-const ForwardIcon = ({ color }: { color: string }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="15,14 20,9 15,4"/>
-    <path d="M4 20v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5"/>
-  </svg>
-)
-
-const CloseIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <line x1="18" y1="6" x2="6" y2="18"/>
-    <line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-)
-
-const PrintIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="6,9 6,2 18,2 18,9"/>
-    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-    <rect x="6" y="14" width="12" height="8"/>
-  </svg>
-)
-
-const CheckCircleIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-    <polyline points="22 4 12 14.01 9 11.01"/>
-  </svg>
-)
-
-const MailIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-    <polyline points="22,6 12,13 2,6"/>
-  </svg>
-)
 
 export default function SentDetailModal({ onReply, onForward, onDelete }: { onReply?: (email: EmailOutbound) => void; onForward?: (email: EmailOutbound) => void; onDelete?: () => void }) {
   const { selectedEmail, isOpen, close } = useSentDetailModalStore()
@@ -174,7 +127,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
               style={{ color: colors.textSecondary }}
               title="Back"
             >
-              <ArrowLeftIcon color={colors.textSecondary} />
+              <ArrowLeft color={colors.textSecondary} />
             </button>
             <button
               onClick={handleDelete}
@@ -182,7 +135,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
               style={{ color: colors.textSecondary }}
               title="Delete"
             >
-              <TrashIcon color={colors.textSecondary} />
+              <Trash2 color={colors.textSecondary} />
             </button>
             <button
               onClick={() => onReply?.(selectedEmail)}
@@ -190,7 +143,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
               style={{ color: colors.textSecondary }}
               title="Reply"
             >
-              <ReplyIcon color={colors.textSecondary} />
+              <Reply color={colors.textSecondary} />
             </button>
             <button
               onClick={() => onForward?.(selectedEmail)}
@@ -198,7 +151,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
               style={{ color: colors.textSecondary }}
               title="Forward"
             >
-              <ForwardIcon color={colors.textSecondary} />
+              <Forward color={colors.textSecondary} />
             </button>
           </div>
 
@@ -211,7 +164,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               title="Print"
             >
-              <PrintIcon color={colors.textSecondary} />
+              <Printer color={colors.textSecondary} />
             </button>
             <button
               onClick={handleClose}
@@ -219,7 +172,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
               style={{ backgroundColor: 'transparent' }}
               title="Close"
             >
-              <CloseIcon color={colors.textSecondary} />
+              <X color={colors.textSecondary} />
             </button>
           </div>
         </div>
@@ -257,7 +210,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
                         className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full"
                         style={{ color: statusColor, backgroundColor: statusColor + '20' }}
                       >
-                        <CheckCircleIcon color={statusColor} />
+                        <CheckCircle color={statusColor} />
                         {selectedEmail.status}
                       </span>
                     </div>
@@ -310,20 +263,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
                         }}
                       >
                         <div className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: colors.primary + '20' }}>
-                          <svg
-                            className="w-5 h-5"
-                            style={{ color: colors.primary }}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01-.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
+                          <FileText color={colors.primary} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate" style={{ color: colors.textPrimary }}>
@@ -337,11 +277,11 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
                           <a
                             href={att.url}
                             download={att.filename}
-                            target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm flex-shrink-0"
+                            className="text-sm flex-shrink-0 flex items-center"
                             style={{ color: colors.primary }}
                           >
+                            <Download className="w-4 h-4 mr-1" />
                             Download
                           </a>
                         )}
@@ -372,7 +312,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  <ReplyIcon color={colors.primary} />
+                  <Reply color={colors.primary} />
                   Reply
                 </button>
                 <button
@@ -392,7 +332,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  <ForwardIcon color={colors.primary} />
+                  <Forward color={colors.primary} />
                   Forward
                 </button>
                 <button

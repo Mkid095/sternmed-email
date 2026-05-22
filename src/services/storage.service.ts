@@ -23,7 +23,14 @@ export const storageService = {
   },
 
   // Upload file to Cloudinary (any file type)
-  uploadFile: async (file: File, folder?: string): Promise<string> => {
+  uploadFile: async (file: File, folder?: string): Promise<UploadResult> => {
+    // Detect resource type based on MIME type
+    const resourceType = file.type.startsWith('image/')
+      ? 'image'
+      : file.type.startsWith('video/')
+        ? 'video'
+        : 'raw';
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', cloudinaryConfig.uploadPreset);
@@ -33,7 +40,7 @@ export const storageService = {
       formData.append('folder', folder);
     }
 
-    const response = await fetch(getCloudinaryUploadUrl(), {
+    const response = await fetch(getCloudinaryUploadUrl(resourceType), {
       method: 'POST',
       body: formData,
     });
@@ -45,11 +52,14 @@ export const storageService = {
 
     const data = await response.json();
 
-    return data.secure_url;
+    return {
+      url: data.secure_url,
+      publicId: data.public_id,
+    };
   },
 
   // Upload multiple files
-  uploadFiles: async (files: File[], folder?: string): Promise<string[]> => {
+  uploadFiles: async (files: File[], folder?: string): Promise<UploadResult[]> => {
     const uploadPromises = Array.from(files).map((file) => storageService.uploadFile(file, folder));
     return Promise.all(uploadPromises);
   },
@@ -81,11 +91,7 @@ export const storageService = {
 
   // Upload image to Cloudinary (legacy, kept for compatibility)
   uploadImage: async (file: File, folder?: string): Promise<UploadResult> => {
-    const url = await storageService.uploadFile(file, folder)
-    return {
-      url,
-      publicId: url.split('/').pop()?.split('.')[0] || '',
-    };
+    return storageService.uploadFile(file, folder);
   },
 
   // Upload multiple images

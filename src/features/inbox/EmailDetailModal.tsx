@@ -8,6 +8,28 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import {
+  ArrowLeft,
+  Archive,
+  Clock,
+  Trash2,
+  Mail,
+  Move,
+  MoreHorizontal,
+  Star,
+  Smile,
+  Reply,
+  Forward,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Printer,
+  ExternalLink,
+  MoreVertical,
+  ChevronDown,
+  FileText,
+  Download,
+} from 'lucide-react'
 import { useEmailModalStore } from './useEmailModalStore'
 import { emailInboundService } from '../../services/supabase/email-inbound.service'
 import { useToastSuccess, useToastError } from '../shared/ui'
@@ -27,138 +49,6 @@ interface EmailDetailModalProps {
   /** Callback when delete action is performed */
   onDelete?: () => void
 }
-
-// Icon components (inline SVGs matching Gmail style)
-const ArrowLeftIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M15 18l-6-6 6-6"/>
-  </svg>
-)
-
-const ArchiveIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-  </svg>
-)
-
-const ClockIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12,6 12,12 16,14"/>
-  </svg>
-)
-
-const TrashIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="3,6 5,6 21,6"/>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-    <line x1="10" y1="11" x2="10" y2="17"/>
-    <line x1="14" y1="11" x2="14" y2="17"/>
-  </svg>
-)
-
-const MailIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-    <polyline points="22,6 12,13 2,6"/>
-  </svg>
-)
-
-const MoveIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="5,9 2,12 5,15"/>
-    <polyline points="9,5 12,2 15,5"/>
-    <polyline points="15,19 12,22 9,19"/>
-    <polyline points="19,9 22,12 19,15"/>
-    <line x1="2" y1="12" x2="22" y2="12"/>
-    <line x1="12" y1="2" x2="12" y2="22"/>
-  </svg>
-)
-
-const DotsIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill={color}>
-    <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
-  </svg>
-)
-
-const StarIcon = ({ filled, color }: { filled: boolean; color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? color : "none"} stroke={color} strokeWidth="2">
-    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
-  </svg>
-)
-
-const EmojiIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-    <line x1="9" y1="9" x2="9.01" y2="9"/>
-    <line x1="15" y1="9" x2="15.01" y2="9"/>
-  </svg>
-)
-
-const ReplyIcon = ({ color }: { color: string }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="9,14 4,9 9,4"/>
-    <path d="M20 20v-5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5"/>
-  </svg>
-)
-
-const ForwardIcon = ({ color }: { color: string }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="15,14 20,9 15,4"/>
-    <path d="M4 20v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5"/>
-  </svg>
-)
-
-const ChevronLeftIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="15,18 9,12 15,6"/>
-  </svg>
-)
-
-const ChevronRightIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="9,18 15,12 9,6"/>
-  </svg>
-)
-
-const CloseIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <line x1="18" y1="6" x2="6" y2="18"/>
-    <line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-)
-
-const PrintIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <polyline points="6,9 6,2 18,2 18,9"/>
-    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-    <rect x="6" y="14" width="12" height="8"/>
-  </svg>
-)
-
-const OpenIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-    <polyline points="15,3 21,3 21,9"/>
-    <line x1="10" y1="14" x2="21" y2="3"/>
-  </svg>
-)
-
-const MenuIcon = ({ color }: { color: string }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <circle cx="12" cy="12" r="1"/>
-    <circle cx="12" cy="5" r="1"/>
-    <circle cx="12" cy="19" r="1"/>
-  </svg>
-)
-
-const ChevronDownIcon = ({ color }: { color: string }) => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <path d="M7 10l5 5 5-5z"/>
-  </svg>
-)
-
 
 /**
  * EmailDetailModal Component
@@ -558,13 +448,13 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
         <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: colors.divider, backgroundColor: colors.surface }}>
           {/* Left: Navigation & Actions */}
           <div className="flex items-center gap-0">
-            <ToolbarButton Icon={ArrowLeftIcon} label="Back" onClick={handleClose} />
-            <ToolbarButton Icon={ArchiveIcon} label="Archive" onClick={handleArchive} />
-            <ToolbarButton Icon={ClockIcon} label="Snooze" onClick={handleSnooze} />
-            <ToolbarButton Icon={TrashIcon} label="Delete" onClick={handleDelete} />
-            <ToolbarButton Icon={MailIcon} label="Mark as unread" onClick={handleToggleRead} active={!activeEmail.isRead} />
-            <ToolbarButton Icon={MoveIcon} label="Move to" onClick={handleMove} />
-            <ToolbarButton Icon={DotsIcon} label="More options" onClick={handleMoreOptions} />
+            <ToolbarButton Icon={ArrowLeft} label="Back" onClick={handleClose} />
+            <ToolbarButton Icon={Archive} label="Archive" onClick={handleArchive} />
+            <ToolbarButton Icon={Clock} label="Snooze" onClick={handleSnooze} />
+            <ToolbarButton Icon={Trash2} label="Delete" onClick={handleDelete} />
+            <ToolbarButton Icon={Mail} label="Mark as unread" onClick={handleToggleRead} active={!activeEmail.isRead} />
+            <ToolbarButton Icon={Move} label="Move to" onClick={handleMove} />
+            <ToolbarButton Icon={MoreHorizontal} label="More options" onClick={handleMoreOptions} />
           </div>
 
           {/* Right: Pagination & Actions */}
@@ -573,26 +463,26 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
               {activeEmailIndex + 1} of {allThreadEmails.length}
             </span>
             <ToolbarButton
-              Icon={ChevronLeftIcon}
+              Icon={ChevronLeft}
               label="Older"
               onClick={handlePrevEmail}
               active={activeEmailIndex > 0}
               disabled={activeEmailIndex <= 0}
             />
             <ToolbarButton
-              Icon={ChevronRightIcon}
+              Icon={ChevronRight}
               label="Newer"
               onClick={handleNextEmail}
               active={activeEmailIndex < allThreadEmails.length - 1}
               disabled={activeEmailIndex >= allThreadEmails.length - 1}
             />
             <ToolbarButton
-              Icon={DotsIcon}
+              Icon={MoreHorizontal}
               label={showAllMessages ? 'Single view' : 'Show all'}
               onClick={handleToggleView}
               active={showAllMessages}
             />
-            <ToolbarButton Icon={CloseIcon} label="Close" onClick={handleClose} />
+            <ToolbarButton Icon={X} label="Close" onClick={handleClose} />
           </div>
         </div>
 
@@ -635,7 +525,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             title="Print"
                           >
-                            <PrintIcon color={colors.textSecondary} />
+                            <Printer color={colors.textSecondary} />
                           </button>
                           <button
                             className="p-2 rounded-full transition-colors"
@@ -644,7 +534,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             title="Open in new window"
                           >
-                            <OpenIcon color={colors.textSecondary} />
+                            <ExternalLink color={colors.textSecondary} />
                           </button>
                         </div>
                       </div>
@@ -672,13 +562,13 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                               style={{ color: colors.textSecondary }}
                             >
                               <span>to me</span>
-                              <ChevronDownIcon color={colors.textSecondary} />
+                              <ChevronDown color={colors.textSecondary} />
                             </button>
 
                             {showToDetails && (
                               <div className="mt-2 text-xs p-3 rounded-lg" style={{ lineHeight: 1.8, backgroundColor: colors.selected, color: colors.textSecondary }}>
                                 <div><strong>from:</strong> {senderEmail}</div>
-                                <div><strong>to:</strong> sternmedafrika1@gmail.com</div>
+                                <div><strong>to:</strong> {email.recipientEmail || 'Unknown recipient'}</div>
                                 <div><strong>date:</strong> {formatDate(email.receivedAt)}</div>
                                 <div><strong>subject:</strong> {email.subject || '(No subject)'}</div>
                               </div>
@@ -698,7 +588,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             title={email.isStarred ? 'Remove star' : 'Add star'}
                           >
-                            <StarIcon filled={email.isStarred} color={email.isStarred ? colors.accent : colors.textTertiary} />
+                            <Star size={20} fill={email.isStarred ? colors.accent : "none"} color={email.isStarred ? colors.accent : colors.textTertiary} />
                           </button>
                           <button
                             className="p-2 rounded-full transition-colors"
@@ -707,7 +597,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             title="Emoji reaction"
                           >
-                            <EmojiIcon color={colors.textTertiary} />
+                            <Smile color={colors.textTertiary} />
                           </button>
                           <button
                             className="p-2 rounded-full transition-colors"
@@ -717,7 +607,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onClick={handleReply}
                             title="Reply"
                           >
-                            <ReplyIcon color={colors.textSecondary} />
+                            <Reply color={colors.textSecondary} />
                           </button>
                           <button
                             className="p-2 rounded-full transition-colors"
@@ -727,7 +617,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onClick={handleForward}
                             title="Forward"
                           >
-                            <ForwardIcon color={colors.textSecondary} />
+                            <Forward color={colors.textSecondary} />
                           </button>
                           <button
                             className="p-2 rounded-full transition-colors"
@@ -736,7 +626,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             title="More"
                           >
-                            <MenuIcon color={colors.textSecondary} />
+                            <MoreVertical color={colors.textSecondary} />
                           </button>
                         </div>
                       </div>
@@ -773,20 +663,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                                   }}
                                 >
                                   <div className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: colors.primary + '20' }}>
-                                    <svg
-                                      className="w-5 h-5"
-                                      style={{ color: colors.primary }}
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01-.293.707V19a2 2 0 01-2 2z"
-                                      />
-                                    </svg>
+                                    <FileText color={colors.primary} />
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <p className="text-sm font-medium truncate" style={{ color: colors.textPrimary }}>
@@ -802,9 +679,10 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                                       download={att.filename}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-sm flex-shrink-0"
+                                      className="text-sm flex-shrink-0 flex items-center"
                                       style={{ color: colors.primary }}
                                     >
+                                      <Download className="w-4 h-4 mr-1" />
                                       Download
                                     </a>
                                   )}
@@ -835,7 +713,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                               e.currentTarget.style.boxShadow = 'none'
                             }}
                           >
-                            <ReplyIcon color={colors.primary} />
+                            <Reply color={colors.primary} />
                             Reply
                           </button>
                           <button
@@ -855,7 +733,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                               e.currentTarget.style.boxShadow = 'none'
                             }}
                           >
-                            <ForwardIcon color={colors.primary} />
+                            <Forward color={colors.primary} />
                             Forward
                           </button>
                           <button
@@ -868,7 +746,7 @@ export default function EmailDetailModal({ onReply, onForward, onArchive, onDele
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.surface}
                             title="Add emoji reaction"
                           >
-                            <EmojiIcon color={colors.textTertiary} />
+                            <Smile color={colors.textTertiary} />
                           </button>
                         </div>
                       </div>

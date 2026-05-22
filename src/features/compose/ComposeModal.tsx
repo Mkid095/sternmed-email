@@ -330,7 +330,7 @@ export default function ComposeModal({
         attachments
           .filter(a => !a.cloudinaryUrl)
           .map(async (attachment) => {
-            const url = await storageService.uploadFile(attachment.file, 'email_attachments')
+            const { url, publicId } = await storageService.uploadFile(attachment.file, 'email_attachments')
             return { filename: attachment.name, url, type: attachment.type, size: attachment.size }
           })
       )
@@ -352,7 +352,7 @@ export default function ComposeModal({
       }
 
       if (draftId) {
-        await emailOutboundService.saveAsDraft(emailAliasId, draftData)
+        await emailOutboundService.updateDraft(draftId, emailAliasId, draftData)
       } else {
         const draft = await emailOutboundService.saveAsDraft(emailAliasId, draftData)
         setDraftId(draft.id)
@@ -400,7 +400,7 @@ export default function ComposeModal({
       const toUpload = attachments.filter(a => !a.cloudinaryUrl)
       const uploaded = await Promise.all(
         toUpload.map(async (attachment) => {
-          const url = await storageService.uploadFile(attachment.file, 'email_attachments')
+          const { url, publicId } = await storageService.uploadFile(attachment.file, 'email_attachments')
           return { filename: attachment.name, url, type: attachment.type, size: attachment.size }
         })
       )

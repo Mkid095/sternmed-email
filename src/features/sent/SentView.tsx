@@ -380,11 +380,11 @@ export default function SentView() {
                   {/* Status indicator */}
                   <div className="flex-shrink-0 opacity-50">
                     {email.status === 'sent' ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#34a853">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill={colors.success || '#34a853'}>
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                       </svg>
                     ) : email.status === 'failed' ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#ea4335">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill={colors.error || '#ea4335'}>
                         <circle cx="12" cy="12" r="10"/>
                       </svg>
                     ) : null}

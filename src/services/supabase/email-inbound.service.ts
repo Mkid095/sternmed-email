@@ -9,6 +9,56 @@
 
 import { supabase } from '../../config/supabase';
 import { EmailInbound } from '../../types';
+import { cloudinaryConfig } from '../../config/cloudinary';
+
+/**
+ * Generate a download URL for an attachment stored in Cloudinary.
+ * The storagePath is stored as the Cloudinary public_id.
+ * Constructs URL format: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/{public_id}
+ */
+function getAttachmentDownloadUrl(
+  storagePath: string,
+  contentType?: string
+): string {
+  if (!storagePath) return '';
+
+  // If it's already a full URL, return as-is
+  if (storagePath.startsWith('http')) {
+    return storagePath;
+  }
+
+  // Determine Cloudinary resource type based on content type
+  let resourceType = 'raw';
+  if (contentType) {
+    if (contentType.startsWith('image/')) {
+      resourceType = 'image';
+    } else if (contentType.startsWith('video/') || contentType.startsWith('audio/')) {
+      resourceType = 'video';
+    }
+    // PDF, documents, etc. remain 'raw'
+  }
+
+  return `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/${resourceType}/upload/${storagePath}`;
+}
+
+/**
+ * Transform attachment data to include download URL
+ */
+function transformAttachmentWithUrl(
+  attachment: { id: string; filename: string; contentType: string; size: number; storagePath: string }
+): { id: string; filename: string; contentType: string; size: number; storagePath: string; url: string } {
+  const url = getAttachmentDownloadUrl(attachment.storagePath, attachment.contentType);
+  return { ...attachment, url };
+}
+
+/**
+ * Transform attachments array to include download URLs
+ */
+function transformAttachmentsWithUrls(
+  attachments: Array<{ id: string; filename: string; contentType: string; size: number; storagePath: string }>
+): Array<{ id: string; filename: string; contentType: string; size: number; storagePath: string; url: string }> {
+  return attachments.map(att => transformAttachmentWithUrl(att));
+}
 
 /**
  * Database row type for email_inbound table
@@ -60,6 +110,17 @@ function transformInboundRow(row: EmailInboundRow): EmailInbound {
     receivedAt: row.received_at,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * Enrich email attachments with download URLs
+ */
+function enrichEmailAttachmentsWithUrls(email: EmailInbound): EmailInbound {
+  if (!email.attachments || email.attachments.length === 0) {
+    return email;
+  }
+  const enrichedAttachments = transformAttachmentsWithUrls(email.attachments);
+  return { ...email, attachments: enrichedAttachments };
 }
 
 /**
@@ -120,8 +181,12 @@ export const emailInboundService = {
 
     if (error) throw new Error(`Failed to fetch inbound emails: ${error.message}`);
 
+    const emails = (data as EmailInboundRow[]).map(transformInboundRow);
+    // Enrich all emails with attachment download URLs
+    const enrichedEmails = emails.map(enrichEmailAttachmentsWithUrls);
+
     return {
-      data: (data as EmailInboundRow[]).map(transformInboundRow),
+      data: enrichedEmails,
       count: count ?? 0,
       hasMore: count !== null && from + pageSize < count,
     };
@@ -139,7 +204,8 @@ export const emailInboundService = {
       .single();
 
     if (error || !data) return null;
-    return transformInboundRow(data as EmailInboundRow);
+    const email = transformInboundRow(data as EmailInboundRow);
+    return enrichEmailAttachmentsWithUrls(email);
   },
 
   /**
@@ -154,7 +220,9 @@ export const emailInboundService = {
       .order('received_at', { ascending: true });
 
     if (error) throw new Error(`Failed to fetch thread: ${error.message}`);
-    return (data as EmailInboundRow[]).map(transformInboundRow);
+    const emails = (data as EmailInboundRow[]).map(transformInboundRow);
+    // Enrich all emails with attachment download URLs
+    return emails.map(enrichEmailAttachmentsWithUrls);
   },
 
   /**
@@ -251,8 +319,11 @@ export const emailInboundService = {
 
     if (error) throw new Error(`Failed to search emails: ${error.message}`);
 
+    const emails = (data as EmailInboundRow[]).map(transformInboundRow);
+    const enrichedEmails = emails.map(enrichEmailAttachmentsWithUrls);
+
     return {
-      data: (data as EmailInboundRow[]).map(transformInboundRow),
+      data: enrichedEmails,
       count: count ?? 0,
       hasMore: count !== null && from + pageSize < count,
     };
@@ -281,8 +352,11 @@ export const emailInboundService = {
 
     if (error) throw new Error(`Failed to fetch threads: ${error.message}`);
 
+    const emails = (data as EmailInboundRow[]).map(transformInboundRow);
+    const enrichedEmails = emails.map(enrichEmailAttachmentsWithUrls);
+
     return {
-      data: (data as EmailInboundRow[]).map(transformInboundRow),
+      data: enrichedEmails,
       count: count ?? 0,
       hasMore: count !== null && from + pageSize < count,
     };

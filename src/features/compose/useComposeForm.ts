@@ -67,7 +67,7 @@ async function uploadAttachments(
 
   for (const attachment of attachments) {
     try {
-      const url = await storageService.uploadFile(attachment.file, 'email_attachments')
+      const { url, publicId } = await storageService.uploadFile(attachment.file, 'email_attachments')
       outboundAttachments.push({
         filename: attachment.name,
         url,

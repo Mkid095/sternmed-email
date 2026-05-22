@@ -16,18 +16,21 @@ export default function ThreadDetailView() {
 
   const [thread, setThread] = useState<EmailInbound[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!threadId || !emailAliasId) return
 
     const fetchThread = async () => {
       setLoading(true)
+      setLoadError(null)
       try {
         const emails = await emailInboundService.getThread(threadId)
         const filtered = emails.filter(e => e.aliasId === emailAliasId)
         setThread(filtered)
       } catch (error) {
         console.error('Error fetching thread:', error)
+        setLoadError('Failed to load thread. Please try again.')
       } finally {
         setLoading(false)
       }
@@ -53,6 +56,24 @@ export default function ThreadDetailView() {
     return (
       <div className="flex items-center justify-center h-full" style={{ backgroundColor: colors.background }}>
         <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: colors.primary }} />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full" style={{ backgroundColor: colors.background }}>
+        <div className="text-center">
+          <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>Failed to load thread</p>
+          <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg font-medium"
+            style={{ backgroundColor: colors.primary, color: '#ffffff' }}
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }

@@ -610,6 +610,7 @@ export const emailOutboundService = {
       body_html: draft.bodyHtml ?? null,
       body_text: draft.bodyText ?? null,
       template_id: draft.templateId ?? null,
+      attachments: (draft.attachments ?? []) as unknown[],
     };
 
     const { data, error } = await supabase

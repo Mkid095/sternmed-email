@@ -133,6 +133,8 @@ export default function EmailLayout() {
               placeholder="Search all emails..."
               className="flex-1 bg-transparent outline-none text-sm"
               style={{ color: colors.textPrimary }}
+              // TODO: Wire up search functionality - connect to search state and API
+              onChange={(e) => { console.log('Search query:', e.target.value) }}
             />
           </div>
         </div>

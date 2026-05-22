@@ -16,6 +16,8 @@ interface ThemeColors {
   searchBackground: string
   selected: string
   divider: string
+  success: string
+  error: string
 }
 
 // Sternmed Afrika Brand Colors
@@ -37,6 +39,8 @@ const lightColors: ThemeColors = {
   searchBackground: '#f1f5f9',
   selected: '#e8f0f7',
   divider: '#e2e8f0',
+  success: '#34a853',
+  error: '#ea4335',
 }
 
 const darkColors: ThemeColors = {
@@ -53,6 +57,8 @@ const darkColors: ThemeColors = {
   searchBackground: '#1e293b',
   selected: '#17487a40',
   divider: '#334155',
+  success: '#34a853',
+  error: '#ea4335',
 }
 
 interface ThemeContextType {
