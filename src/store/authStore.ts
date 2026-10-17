@@ -44,15 +44,19 @@ async function waitForProfile(sinceEpoch: number): Promise<void> {
       throw state.profileError
     }
 
-    // The listener ran and found no user: the session genuinely ended.
-    if (!state.firebaseUser) {
-      throw new AuthFlowError(
-        'session-ended',
-        'Your session ended before the mailbox could be loaded. Please sign in again.'
-      )
+    // Signed in, profile still resolving — keep waiting. Falling through to
+    // the "no user" branch here is what made every sign-in report a dead
+    // session during the Supabase round trip.
+    if (state.firebaseUser) {
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      continue
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 60))
+    // The listener ran and found no user: the session genuinely ended.
+    throw new AuthFlowError(
+      'session-ended',
+      'Your session ended before the mailbox could be loaded. Please sign in again.'
+    )
   }
 
   throw new AuthFlowError(
@@ -110,10 +114,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Set up persistent auth state listener
     onAuthStateChanged(auth, async (firebaseUser) => {
-      // Mark the start of this invocation so waitForProfile can detect it.
-      // Done before the async Supabase lookup so the epoch advances even if
-      // the profile request is still in flight.
-      set((state) => ({ sessionEpoch: state.sessionEpoch + 1 }))
+      // Publish the identity BEFORE the Supabase lookup.
+      //
+      // Advancing the epoch alone was not enough: `firebaseUser` used to be
+      // written only after `await supabase...` resolved, so for the duration
+      // of that round trip the store read `{ sessionEpoch: 1, firebaseUser:
+      // null }`. waitForProfile saw the epoch advance, concluded the listener
+      // had run and found nobody, and threw "your session ended" — every
+      // successful sign-in, again.
+      set((state) => ({
+        sessionEpoch: state.sessionEpoch + 1,
+        firebaseUser,
+        profileError: null,
+      }))
 
       if (firebaseUser) {
         // Fetch user profile from Supabase
