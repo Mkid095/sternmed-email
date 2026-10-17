@@ -21,7 +21,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Source maps are not published. They would hand every visitor the full
+    // original source and make any future leaked value trivial to recover.
+    // Set to 'hidden' locally if you need to debug a production build.
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {

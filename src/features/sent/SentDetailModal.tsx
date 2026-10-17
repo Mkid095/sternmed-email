@@ -21,6 +21,7 @@ import {
   Download,
 } from 'lucide-react'
 import { useSentDetailModalStore } from './useSentDetailModalStore'
+import SafeHtml from '../../components/ui/SafeHtml'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useToastSuccess, useToastError } from '../shared/ui'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
@@ -235,10 +236,7 @@ export default function SentDetailModal({ onReply, onForward, onDelete }: { onRe
             <div className="border-t pt-4" style={{ borderColor: colors.divider }}>
               <div className="text-[15px] leading-relaxed max-w-[580px]" style={{ color: colors.textPrimary }}>
                 {selectedEmail.bodyHtml ? (
-                  <div
-                    className="email-body"
-                    dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml }}
-                  />
+                  <SafeHtml className="email-body" html={selectedEmail.bodyHtml} />
                 ) : (
                   <pre className="whitespace-pre-wrap font-sans text-base">
                     {selectedEmail.bodyText || ''}

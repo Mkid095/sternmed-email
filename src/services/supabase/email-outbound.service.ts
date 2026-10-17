@@ -333,6 +333,15 @@ export const emailOutboundService = {
 
     // Send via Resend Edge Function
     try {
+      // The edge function accepts either a single address or an array. The
+      // database stores recipients in one text column, so a multi-address To
+      // field arrives here comma-joined — split it back into a real array
+      // rather than handing the function a string it will reject.
+      const recipients = input.recipientEmail
+        .split(',')
+        .map((address) => address.trim())
+        .filter(Boolean)
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
         method: 'POST',
         headers: {
@@ -340,7 +349,7 @@ export const emailOutboundService = {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
-          to: input.recipientEmail,
+          to: recipients,
           subject: input.subject,
           html: input.bodyHtml || undefined,
           text: input.bodyText || undefined,
@@ -445,7 +454,10 @@ export const emailOutboundService = {
 
     // Prepare email data
     const emailData = {
-      to: email.recipientEmail,
+      to: email.recipientEmail
+        .split(',')
+        .map((address) => address.trim())
+        .filter(Boolean),
       subject: email.subject,
       html: email.bodyHtml || undefined,
       text: email.bodyText || undefined,

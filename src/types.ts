@@ -23,17 +23,38 @@ export interface EmailInbound {
     contentType: string
     size: number
     storagePath: string
+    /** MIME Content-ID for inline parts, used to resolve `cid:` references. */
+    contentId?: string
+    /** Resolved delivery URL, derived from storagePath. */
+    url?: string
   }>
   messageId?: string
   inReplyTo?: string
   references?: string
-  spfPass: boolean
-  dkimPass: boolean
+  /** null means the sender sent no Authentication-Results header: genuinely unknown, not a pass. */
+  spfPass: boolean | null
+  dkimPass: boolean | null
   isRead: boolean
   isStarred: boolean
+  /** Set when the message was moved to Archive. */
+  archivedAt?: string
+  /** True when reported as spam. */
+  isSpam: boolean
+  /** Set when moved to Trash. */
   deletedAt?: string
   receivedAt: string
   createdAt: string
+}
+
+/** Where a message currently sits. */
+export type MailboxFolder = 'inbox' | 'archive' | 'spam' | 'trash'
+
+/** Counts shown on the sidebar. */
+export interface FolderCounts {
+  inbox: number
+  archive: number
+  spam: number
+  trash: number
 }
 
 export interface EmailOutbound {
@@ -58,6 +79,8 @@ export interface EmailOutbound {
   sentAt?: string
   retryCount: number
   maxRetries: number
+  /** Set when the sent message was moved to Archive. */
+  archivedAt?: string
   deletedAt?: string
   updatedAt?: string
   createdAt: string

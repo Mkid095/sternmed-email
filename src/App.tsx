@@ -5,8 +5,9 @@ import EmailLogin from './features/auth/EmailLogin'
 import EmailLayout from './layouts/EmailLayout'
 import InboxView from './features/inbox/InboxView'
 import StarredView from './features/starred/StarredView'
-import ThreadDetailView from './features/inbox/ThreadDetailView'
+import MessageView from './features/inbox/MessageView'
 import SentView from './features/sent/SentView'
+import FolderView from './features/folders/FolderView'
 import DraftsView from './features/drafts/DraftsView'
 import ComposeView from './features/compose/ComposeView'
 import SettingsView from './features/settings/SettingsView'
@@ -58,8 +59,11 @@ function App() {
         <Route index element={<Navigate to="/inbox" replace />} />
         <Route path="inbox" element={<InboxView />} />
         <Route path="starred" element={<StarredView />} />
-        <Route path="thread/:threadId" element={<ThreadDetailView />} />
+        <Route path="message/:id" element={<MessageView />} />
         <Route path="sent" element={<SentView />} />
+        <Route path="archive" element={<FolderView folder="archive" />} />
+        <Route path="spam" element={<FolderView folder="spam" />} />
+        <Route path="trash" element={<FolderView folder="trash" />} />
         <Route path="drafts" element={<DraftsView />} />
         <Route path="compose" element={<ComposeView />} />
         <Route path="settings" element={<SettingsView />} />

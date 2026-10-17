@@ -1,3 +1,2 @@
 export { default as InboxView } from './InboxView'
-export { default as ThreadDetailView } from './ThreadDetailView'
-
+export { default as MessageView } from './MessageView'

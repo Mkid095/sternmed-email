@@ -8,8 +8,9 @@
  */
 
 import { supabase } from '../../config/supabase';
-import { EmailInbound } from '../../types';
-import { cloudinaryConfig } from '../../config/cloudinary';
+import { EmailInbound, MailboxFolder, FolderCounts } from '../../types';
+import { cloudinaryConfig } from '../../config/cloudinary'
+import { resolveCidImages } from '../../lib/cidImages';
 
 /**
  * Generate a download URL for an attachment stored in Cloudinary.
@@ -42,11 +43,27 @@ function getAttachmentDownloadUrl(
 }
 
 /**
+ * Attachment as stored in the `attachments` jsonb column.
+ *
+ * `contentId` and `url` are optional: rows written before the inbound worker
+ * began persisting Content-IDs have no contentId, and `url` is derived here.
+ */
+export interface StoredAttachmentRow {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  storagePath: string;
+  contentId?: string;
+}
+
+/** An attachment enriched with its resolved Cloudinary delivery URL. */
+export type DownloadableAttachment = StoredAttachmentRow & { url: string };
+
+/**
  * Transform attachment data to include download URL
  */
-function transformAttachmentWithUrl(
-  attachment: { id: string; filename: string; contentType: string; size: number; storagePath: string }
-): { id: string; filename: string; contentType: string; size: number; storagePath: string; url: string } {
+function transformAttachmentWithUrl(attachment: StoredAttachmentRow): DownloadableAttachment {
   const url = getAttachmentDownloadUrl(attachment.storagePath, attachment.contentType);
   return { ...attachment, url };
 }
@@ -54,9 +71,7 @@ function transformAttachmentWithUrl(
 /**
  * Transform attachments array to include download URLs
  */
-function transformAttachmentsWithUrls(
-  attachments: Array<{ id: string; filename: string; contentType: string; size: number; storagePath: string }>
-): Array<{ id: string; filename: string; contentType: string; size: number; storagePath: string; url: string }> {
+function transformAttachmentsWithUrls(attachments: StoredAttachmentRow[]): DownloadableAttachment[] {
   return attachments.map(att => transformAttachmentWithUrl(att));
 }
 
@@ -80,6 +95,8 @@ interface EmailInboundRow {
   dkim_pass: boolean;
   is_read: boolean;
   is_starred: boolean;
+  archived_at?: string | null;
+  is_spam?: boolean | null;
   deleted_at: string | null;
   received_at: string;
   created_at: string;
@@ -98,7 +115,7 @@ function transformInboundRow(row: EmailInboundRow): EmailInbound {
     subject: row.subject ?? undefined,
     bodyHtml: row.body_html ?? undefined,
     bodyText: row.body_text ?? undefined,
-    attachments: (row.attachments as Array<{ id: string; filename: string; contentType: string; size: number; storagePath: string }>) ?? [],
+    attachments: (row.attachments as StoredAttachmentRow[]) ?? [],
     messageId: row.message_id ?? undefined,
     inReplyTo: row.in_reply_to ?? undefined,
     references: row.references ?? undefined,
@@ -106,6 +123,8 @@ function transformInboundRow(row: EmailInboundRow): EmailInbound {
     dkimPass: row.dkim_pass,
     isRead: row.is_read,
     isStarred: row.is_starred,
+    archivedAt: row.archived_at ?? undefined,
+    isSpam: row.is_spam ?? false,
     deletedAt: row.deleted_at ?? undefined,
     receivedAt: row.received_at,
     createdAt: row.created_at,
@@ -116,11 +135,31 @@ function transformInboundRow(row: EmailInboundRow): EmailInbound {
  * Enrich email attachments with download URLs
  */
 function enrichEmailAttachmentsWithUrls(email: EmailInbound): EmailInbound {
-  if (!email.attachments || email.attachments.length === 0) {
-    return email;
-  }
-  const enrichedAttachments = transformAttachmentsWithUrls(email.attachments);
-  return { ...email, attachments: enrichedAttachments };
+  const attachments = email.attachments ?? [];
+  const enrichedAttachments = transformAttachmentsWithUrls(attachments);
+
+  // Depends on the URLs above: a cid: source is rewritten to the attachment's
+  // real URL when we have one, and dropped otherwise so the browser stops
+  // issuing requests that can only fail.
+  const bodyHtml = resolveCidImages(email.bodyHtml, enrichedAttachments);
+
+  return { ...email, attachments: enrichedAttachments, bodyHtml };
+}
+
+/**
+ * Escape a user-supplied search term for safe use inside a PostgREST
+ * `.or()` filter.
+ *
+ * PostgREST parses commas and parentheses as boolean operators, so an
+ * unescaped query could inject extra conditions into the filter. Backslashes
+ * and the operator characters must be neutralised. `%` and `_` are LIKE
+ * wildcards — we escape them so a query cannot trigger a full-table scan.
+ */
+function escapePostgrestSearch(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/[%_]/g, (char) => `\\${char}`)
+    .replace(/[,()]/g, (char) => `\\${char}`)
 }
 
 /**
@@ -133,11 +172,39 @@ export interface PaginatedResult<T> {
 }
 
 /**
+ * Whether the archive/spam columns exist yet.
+ *
+ * They arrive with migration 20260502_add_archive_spam_trash.sql. Until that
+ * is applied, querying them returns "column does not exist" and takes the
+ * inbox down with it — including the parts that worked before. So the first
+ * such failure flips this flag and the query is retried in legacy mode.
+ * Trash keeps working throughout, because deleted_at predates this work.
+ */
+let folderColumnsAvailable = true
+
+/** Recognises the PostgREST "column does not exist" family of errors. */
+function isMissingColumnError(message: string): boolean {
+  return /does not exist/i.test(message) && /(archived_at|is_spam)/i.test(message)
+}
+
+/** Exposed so the UI can explain why a folder is unavailable. */
+export function areFolderColumnsAvailable(): boolean {
+  return folderColumnsAvailable
+}
+
+/**
  * Email inbound service
  */
 export const emailInboundService = {
   /**
-   * Get inbound emails for an alias with pagination
+   * Get inbound emails for an alias, scoped to a folder.
+   *
+   * The folder is not a column — it is a combination of three, and each folder
+   * filters differently:
+   *   inbox    deleted_at IS NULL AND archived_at IS NULL AND is_spam = false
+   *   archive  deleted_at IS NULL AND archived_at IS NOT NULL
+   *   spam     deleted_at IS NULL AND is_spam = true
+   *   trash    deleted_at IS NOT NULL
    */
   async getInboundEmails(
     aliasId: string,
@@ -147,6 +214,7 @@ export const emailInboundService = {
       unreadOnly?: boolean;
       starredOnly?: boolean;
       threadId?: string;
+      folder?: MailboxFolder;
     } = {}
   ): Promise<PaginatedResult<EmailInbound>> {
     const {
@@ -155,29 +223,80 @@ export const emailInboundService = {
       unreadOnly = false,
       starredOnly = false,
       threadId,
+      folder = 'inbox',
     } = options;
-
-    let query = supabase
-      .from('email_inbound')
-      .select('*', { count: 'exact' })
-      .eq('alias_id', aliasId)
-      .is('deleted_at', null)
-      .order('received_at', { ascending: false });
-
-    if (unreadOnly) {
-      query = query.eq('is_read', false);
-    }
-    if (starredOnly) {
-      query = query.eq('is_starred', true);
-    }
-    if (threadId) {
-      query = query.eq('thread_id', threadId);
-    }
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error, count } = await query.range(from, to);
+    const runQuery = async (useFolderColumns: boolean) => {
+      let query = supabase
+        .from('email_inbound')
+        .select('*', { count: 'exact' })
+        .eq('alias_id', aliasId);
+
+      switch (folder) {
+        case 'trash':
+          // Always available: deleted_at is the original soft-delete column.
+          query = query.not('deleted_at', 'is', null);
+          break;
+
+        case 'archive':
+          if (!useFolderColumns) return null;
+          query = query.is('deleted_at', null).not('archived_at', 'is', null);
+          break;
+
+        case 'spam':
+          if (!useFolderColumns) return null;
+          query = query.is('deleted_at', null).eq('is_spam', true);
+          break;
+
+        case 'inbox':
+        default:
+          query = query.is('deleted_at', null);
+          if (useFolderColumns) {
+            query = query.is('archived_at', null).eq('is_spam', false);
+          }
+          break;
+      }
+
+      if (unreadOnly) query = query.eq('is_read', false);
+      if (starredOnly) query = query.eq('is_starred', true);
+      if (threadId) query = query.eq('thread_id', threadId);
+
+      return query.order('received_at', { ascending: false }).range(from, to);
+    };
+
+    // A folder that needs the new columns, before they exist.
+    if ((folder === 'archive' || folder === 'spam') && !folderColumnsAvailable) {
+      return { data: [], count: 0, hasMore: false };
+    }
+
+    let result = await runQuery(folderColumnsAvailable);
+
+    // First failure against a pre-migration database: fall back and remember.
+    // Deliberately not gated on the flag: two callers can be in flight at
+    // once (React StrictMode double-invokes effects), and whichever loses the
+    // race would otherwise throw instead of falling back.
+    if (result?.error && isMissingColumnError(result.error.message)) {
+      console.warn(
+        '[mailbox] Archive/Spam columns are missing. Apply ' +
+          'supabase/migrations/20260502_add_archive_spam_trash.sql. ' +
+          'Falling back to Inbox and Trash only.'
+      );
+      folderColumnsAvailable = false;
+
+      if (folder === 'archive' || folder === 'spam') {
+        return { data: [], count: 0, hasMore: false };
+      }
+      result = await runQuery(false);
+    }
+
+    if (!result) {
+      return { data: [], count: 0, hasMore: false };
+    }
+
+    const { data, error, count } = result;
 
     if (error) throw new Error(`Failed to fetch inbound emails: ${error.message}`);
 
@@ -190,6 +309,165 @@ export const emailInboundService = {
       count: count ?? 0,
       hasMore: count !== null && from + pageSize < count,
     };
+  },
+
+  /**
+   * Move a message to Archive, or bring it back to the inbox.
+   * Reading `archived_at` rather than toggling means the caller states the
+   * destination instead of the action, so it cannot get out of step.
+   */
+  async setArchived(ids: string | string[], archived: boolean): Promise<void> {
+    const list = Array.isArray(ids) ? ids : [ids];
+    if (list.length === 0) return;
+
+    // Nothing sensible to do without the column — say why rather than
+    // pretending the message moved.
+    if (!folderColumnsAvailable) {
+      throw new Error(
+        'Archive is not enabled yet. Apply migration 20260502_add_archive_spam_trash.sql.'
+      );
+    }
+
+    const { error } = await supabase
+      .from('email_inbound')
+      .update({ archived_at: archived ? new Date().toISOString() : null })
+      .in('id', list);
+
+    if (error) throw new Error(`Failed to archive: ${error.message}`);
+  },
+
+  /** Report as spam, or move back to the inbox. */
+  async setSpam(ids: string | string[], spam: boolean): Promise<void> {
+    const list = Array.isArray(ids) ? ids : [ids];
+    if (list.length === 0) return;
+
+    if (!folderColumnsAvailable) {
+      throw new Error(
+        'Spam filtering is not enabled yet. Apply migration 20260502_add_archive_spam_trash.sql.'
+      );
+    }
+
+    const { error } = await supabase
+      .from('email_inbound')
+      // Clearing spam returns the message to the inbox, so archive is reset.
+      .update({ is_spam: spam, archived_at: spam ? new Date().toISOString() : null })
+      .in('id', list);
+
+    if (error) throw new Error(`Failed to update spam: ${error.message}`);
+  },
+
+  /**
+   * Restore messages from Trash.
+   * Reading `deleted_at` rather than toggling, for the same reason.
+   */
+  async setDeleted(ids: string | string[], deleted: boolean): Promise<void> {
+    const list = Array.isArray(ids) ? ids : [ids];
+    if (list.length === 0) return;
+
+    const { error } = await supabase
+      .from('email_inbound')
+      .update({ deleted_at: deleted ? new Date().toISOString() : null })
+      .in('id', list);
+
+    if (error) throw new Error(`Failed to update: ${error.message}`);
+  },
+
+  /** Permanently delete messages. Irreversible — used by "Empty trash". */
+  async permanentlyDelete(ids: string | string[]): Promise<void> {
+    const list = Array.isArray(ids) ? ids : [ids];
+    if (list.length === 0) return;
+
+    const { error } = await supabase
+      .from('email_inbound')
+      .delete()
+      .in('id', list);
+
+    if (error) throw new Error(`Failed to delete permanently: ${error.message}`);
+  },
+
+  /**
+   * Unread-inbox / archive / spam / trash counts in a single round trip.
+   * Falls back to independent counts if the SQL function is not installed yet,
+   * so the sidebar still works before the migration is applied.
+   */
+  async getFolderCounts(aliasId: string): Promise<FolderCounts> {
+    const empty: FolderCounts = { inbox: 0, archive: 0, spam: 0, trash: 0 }
+
+    try {
+      const { data, error } = await supabase.rpc('get_mailbox_folder_counts', {
+        p_alias_id: aliasId,
+      })
+
+      if (!error && data && data.length > 0) {
+        const row = data[0] as {
+          inbox_count?: number
+          archived_count?: number
+          spam_count?: number
+          trash_count?: number
+        }
+        return {
+          inbox: Number(row.inbox_count ?? 0),
+          archive: Number(row.archived_count ?? 0),
+          spam: Number(row.spam_count ?? 0),
+          trash: Number(row.trash_count ?? 0),
+        }
+      }
+    } catch {
+      // Function not installed — fall through to the per-folder counts.
+    }
+
+    try {
+      // Trash only needs deleted_at, so it is always safe to ask for.
+      const trashQuery = await supabase
+        .from('email_inbound')
+        .select('id', { count: 'exact', head: true })
+        .eq('alias_id', aliasId)
+        .not('deleted_at', 'is', null)
+      const trash = trashQuery.count ?? 0
+
+      if (!folderColumnsAvailable) {
+        const inboxQuery = await supabase
+          .from('email_inbound')
+          .select('id', { count: 'exact', head: true })
+          .eq('alias_id', aliasId)
+          .is('deleted_at', null)
+          .eq('is_read', false)
+
+        return { inbox: inboxQuery.count ?? 0, archive: 0, spam: 0, trash }
+      }
+
+      const [inboxQ, archiveQ, spamQ] = await Promise.all([
+        supabase
+          .from('email_inbound')
+          .select('id', { count: 'exact', head: true })
+          .eq('alias_id', aliasId)
+          .is('deleted_at', null)
+          .is('archived_at', null)
+          .eq('is_spam', false)
+          .eq('is_read', false),
+        supabase
+          .from('email_inbound')
+          .select('id', { count: 'exact', head: true })
+          .eq('alias_id', aliasId)
+          .is('deleted_at', null)
+          .not('archived_at', 'is', null),
+        supabase
+          .from('email_inbound')
+          .select('id', { count: 'exact', head: true })
+          .eq('alias_id', aliasId)
+          .is('deleted_at', null)
+          .eq('is_spam', true),
+      ])
+
+      return {
+        inbox: inboxQ.count ?? 0,
+        archive: archiveQ.count ?? 0,
+        spam: spamQ.count ?? 0,
+        trash,
+      }
+    } catch {
+      return empty
+    }
   },
 
   /**
@@ -209,13 +487,20 @@ export const emailInboundService = {
   },
 
   /**
-   * Get thread (conversation) for an email
+   * Get thread (conversation) for an email.
+   *
+   * A message that starts its own conversation has `thread_id = null`, and
+   * `.eq('thread_id', null)` serialises to `thread_id=eq.null` — which
+   * PostgREST passes to Postgres as the *string* 'null' and rejects with
+   * `invalid input syntax for type uuid`. It has to be `.is(...)` to mean
+   * SQL NULL. Previously this threw a 400 every time a non-threaded message
+   * was opened.
    */
-  async getThread(threadId: string): Promise<EmailInbound[]> {
-    const { data, error } = await supabase
-      .from('email_inbound')
-      .select('*')
-      .eq('thread_id', threadId)
+  async getThread(threadId: string | null | undefined): Promise<EmailInbound[]> {
+    let query = supabase.from('email_inbound').select('*');
+    query = threadId ? query.eq('thread_id', threadId) : query.is('thread_id', null);
+
+    const { data, error } = await query
       .is('deleted_at', null)
       .order('received_at', { ascending: true });
 
@@ -304,16 +589,25 @@ export const emailInboundService = {
   ): Promise<PaginatedResult<EmailInbound>> {
     const { page = 1, pageSize = 20 } = options;
 
-    // Use full-text search index
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
+
+    // Strip PostgREST filter metacharacters before interpolating.
+    const safe = escapePostgrestSearch(query.trim().slice(0, 100));
+
+    // An empty term would produce a filter matching everything.
+    if (!safe) {
+      return { data: [], count: 0, hasMore: false };
+    }
 
     const { data, error, count } = await supabase
       .from('email_inbound')
       .select('*', { count: 'exact' })
       .eq('alias_id', aliasId)
       .is('deleted_at', null)
-      .or(`subject.ilike.%${query}%,sender_email.ilike.%${query}%,sender_name.ilike.%${query}%`)
+      .or(
+        `subject.ilike.%${safe}%,sender_email.ilike.%${safe}%,sender_name.ilike.%${safe}%`
+      )
       .order('received_at', { ascending: false })
       .range(from, to);
 

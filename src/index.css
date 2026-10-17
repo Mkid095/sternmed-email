@@ -12,15 +12,185 @@
   * {
     border-color: hsl(var(--border));
   }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
+    margin: 0;
     background-color: white;
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
+      'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numeric columns (counts, dates, sizes) should not jitter as they change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible keyboard focus everywhere, but never on mouse clicks. */
+  :focus-visible {
+    outline: 2px solid #17487a;
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 }
 
 @layer components {
   .container {
     @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* We render our own clear button, so hide the browser's built-in one. */
+  input[type='search']::-webkit-search-cancel-button,
+  input[type='search']::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+/* ── Rich text editor ──────────────────────────────────────────── */
+/* Placeholder via ::before on the empty contenteditable. `:empty` only
+   matches when there is no markup at all, so an empty string typed then
+   deleted returns the hint. */
+.rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary, #94a3b8);
+  pointer-events: none;
+}
+
+/* The editor renders what the recipient will see, so it must not silently
+   restyle pasted content into the app's theme. */
+.rich-editor ul,
+.rich-editor ol {
+  padding-left: 24px;
+}
+
+.rich-editor blockquote {
+  border-left: 3px solid var(--primary, #17487a);
+  padding-left: 12px;
+  margin: 8px 0;
+}
+
+/* ── Email body ────────────────────────────────────────────────── */
+/* Third-party HTML from senders is arbitrary: fixed-width tables,
+   oversized images and long unbroken strings all break the layout.
+   Constrain everything to the reading column. */
+.email-body {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.email-body img,
+.email-body video,
+.email-body canvas,
+.email-body svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.email-body table {
+  max-width: 100% !important;
+  border-collapse: collapse;
+}
+
+.email-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.email-body a {
+  color: #17487a;
+  text-decoration: underline;
+}
+
+/* Quote blocks from replies read better indented with a rule. */
+.email-body blockquote {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 3px solid hsl(var(--border));
+  color: #64748b;
+}
+
+/* ── Menu items ────────────────────────────────────────────────── */
+/* Radix marks the focused item with data-highlighted for both mouse and
+   keyboard, so the highlight looks identical either way. */
+.menu-item[data-highlighted] {
+  background-color: var(--menu-hover, rgba(120, 140, 170, 0.16));
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────── */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 150ms;
+  }
+  .scrollbar-thin:hover {
+    scrollbar-color: var(--sb-thumb, rgba(120, 140, 170, 0.45)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+    background-color: var(--sb-thumb, rgba(120, 140, 170, 0.45));
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Shimmer for skeleton placeholders. */
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+/* Respect users who have asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,270 +1,221 @@
 /**
- * Drafts View Component
+ * Drafts
  *
- * Displays draft emails in Gmail-style list layout.
- * Clicking a draft opens it in a compose window for editing.
- *
- * @module features/drafts/DraftsView
+ * Lists unsent messages and opens them in the full-page compose view.
+ * The previous version routed drafts through the floating compose window
+ * (which had no autosave) and rendered a checkbox that did nothing.
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FileText, Trash2, RefreshCw, PenSquare } from 'lucide-react'
 import { emailOutboundService } from '../../services/supabase/email-outbound.service'
 import { useAuthStore } from '../../store/authStore'
-import { useComposeStore } from '../../features/compose/useComposeStore'
 import { useTheme } from '../../contexts/ThemeContext'
+import useConfirmationModal from '../shared/ui/useConfirmationModal'
+import ConfirmationModal from '../shared/ui/ConfirmationModal'
+import { useToastSuccess, useToastError } from '../shared/ui'
+import { Button, IconButton } from '../../components/ui/Button'
+import { SkeletonRows } from '../../components/ui/Skeleton'
+import { OutboundRow } from '../../components/mail/OutboundRow'
+import {
+  ListHeader,
+  SelectionToolbar,
+  ToolbarButton,
+  EmptyState,
+  ErrorState,
+  LoadMore,
+} from '../../components/mail/MailList'
 import type { EmailOutbound } from '../../types'
+
+const PAGE_SIZE = 20
 
 export default function DraftsView() {
   const navigate = useNavigate()
   const { emailAliasId } = useAuthStore()
-  const { openCompose } = useComposeStore()
   const { colors } = useTheme()
+  const { confirm, confirmation } = useConfirmationModal()
+  const showSuccess = useToastSuccess()
+  const showError = useToastError()
 
   const [drafts, setDrafts] = useState<EmailOutbound[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hoveredRow, setHoveredRow] = useState<string | null>(null)
-
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
 
-  const fetchDrafts = useCallback(async (pageNum: number, reset: boolean = true) => {
-    if (!emailAliasId) return
+  const fetchDrafts = useCallback(
+    async (pageNum: number, reset = true) => {
+      if (!emailAliasId) return
+      if (pageNum === 1) setLoading(true)
+      else setLoadingMore(true)
+      setError(null)
 
-    if (pageNum === 1) setLoading(true)
-    else setLoadingMore(true)
-
-    try {
-      const result = await emailOutboundService.getOutboundEmails(emailAliasId, {
-        page: pageNum,
-        pageSize: 20,
-        status: 'pending',
-      })
-
-      if (reset || pageNum === 1) {
-        setDrafts(result.data)
-      } else {
-        setDrafts(prev => [...prev, ...result.data])
+      try {
+        const result = await emailOutboundService.getOutboundEmails(emailAliasId, {
+          page: pageNum,
+          pageSize: PAGE_SIZE,
+          status: 'pending',
+        })
+        setDrafts((prev) => (reset ? result.data : [...prev, ...result.data]))
+        setTotal(result.count)
+        setHasMore(result.hasMore)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not load drafts.')
+        showError('Failed to load drafts')
+      } finally {
+        setLoading(false)
+        setLoadingMore(false)
       }
-
-      setHasMore(result.hasMore)
-    } catch (error) {
-      console.error('Error fetching drafts:', error)
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  }, [emailAliasId])
+    },
+    [emailAliasId, showError]
+  )
 
   useEffect(() => {
     setPage(1)
     fetchDrafts(1, true)
-  }, [fetchDrafts])
+  }, [emailAliasId, fetchDrafts])
 
-  // Listen for email-deleted event
-  useEffect(() => {
-    const handleEmailDeleted = () => {
-      fetchDrafts(1, true)
-    }
-    window.addEventListener('email-deleted', handleEmailDeleted)
-    return () => window.removeEventListener('email-deleted', handleEmailDeleted)
-  }, [fetchDrafts])
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchDrafts(1, true)
+    setRefreshing(false)
+    showSuccess('Drafts refreshed')
+  }
 
   const handleLoadMore = () => {
-    const nextPage = page + 1
-    setPage(nextPage)
-    fetchDrafts(nextPage, false)
+    const next = page + 1
+    setPage(next)
+    fetchDrafts(next, false)
   }
 
-  const handleRowClick = (draft: EmailOutbound) => {
-    // Open compose window with draft data for editing
-    openCompose(
-      {
-        to: [draft.recipientEmail],
-        subject: draft.subject,
-        body: draft.bodyText || '',
-        cc: draft.cc || [],
-        bcc: draft.bcc || [],
-      },
-      undefined,
-      draft.id
-    )
+  const toggleSelect = (draft: EmailOutbound) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(draft.id)) next.delete(draft.id)
+      else next.add(draft.id)
+      return next
+    })
   }
 
-  const getInitials = (email: string) => {
-    if (!email) return '?'
-    const parts = email.split('@')[0]
-    return parts.charAt(0).toUpperCase()
+  /** Opening a draft hands its id to the compose route via sessionStorage. */
+  const openDraft = (draft: EmailOutbound) => {
+    sessionStorage.setItem('compose:draftId', draft.id)
+    navigate('/compose')
   }
 
-  const getAvatarColor = (email: string) => {
-    const colors_arr = ['#1a73e8', '#34a853', '#ea4335', '#fbbc04', '#9c27b0', '#ff5722', '#00bcd4', '#795548', '#607d8b', '#e91e63']
-    let hash = 0
-    for (let i = 0; i < email.length; i++) {
-      hash = (hash * 31 + email.charCodeAt(i)) % colors_arr.length
+  const handleDelete = async () => {
+    if (selectedIds.size === 0) return
+    const count = selectedIds.size
+    const ok = await confirm({
+      title: 'Delete drafts',
+      message: `Permanently delete ${count} draft${count === 1 ? '' : 's'}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    })
+    if (!ok) return
+
+    const ids = Array.from(selectedIds)
+    try {
+      await Promise.all(ids.map((id) => emailOutboundService.softDelete(id)))
+      setDrafts((prev) => prev.filter((d) => !selectedIds.has(d.id)))
+      setTotal((prev) => Math.max(0, prev - count))
+      setSelectedIds(new Set())
+      window.dispatchEvent(new Event('mailbox-changed'))
+      showSuccess(`Deleted ${count} draft${count === 1 ? '' : 's'}`)
+    } catch {
+      showError('Could not delete drafts')
     }
-    return colors_arr[Math.abs(hash)]
   }
 
-  const formatPreview = (email: EmailOutbound) => {
-    const text = email.bodyText || email.bodyHtml?.replace(/<[^>]*>/g, '') || ''
-    return text.slice(0, 80) + (text.length > 80 ? '...' : '')
-  }
+  const hasSelection = selectedIds.size > 0
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    if (days === 0) return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return date.toLocaleDateString('en-GB', { weekday: 'short' })
-    return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
-  }
+  const header = hasSelection ? (
+    <SelectionToolbar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+      <ToolbarButton onClick={handleDelete} icon={<Trash2 size={16} />}>
+        Delete
+      </ToolbarButton>
+    </SelectionToolbar>
+  ) : (
+    <ListHeader
+      title="Drafts"
+      meta={<span className="tabular">{total} draft{total === 1 ? '' : 's'}</span>}
+      actions={
+        <>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/compose')}
+            leadingIcon={<PenSquare size={15} />}
+          >
+            New draft
+          </Button>
+          <IconButton label="Refresh drafts" size={34} onClick={handleRefresh}>
+            <RefreshCw
+              size={17}
+              style={{ animation: refreshing ? 'spin 700ms linear infinite' : undefined }}
+            />
+          </IconButton>
+        </>
+      }
+    />
+  )
 
   return (
-    <div className="min-h-full" style={{ backgroundColor: colors.surface }}>
-      <div className="divide-y" style={{ borderColor: colors.divider }}>
-        {drafts.length === 0 && !loading ? (
-          <div className="p-8 text-center text-gray-500">
-            <p className="text-sm">No drafts</p>
-          </div>
-        ) : (
-          drafts.map((draft) => {
-            const recipient = draft.recipientEmail
-            const initials = getInitials(recipient)
-            const avatarColor = getAvatarColor(recipient)
-            const preview = formatPreview(draft)
-            const dateFormatted = formatDate(draft.createdAt)
-            const isHovered = hoveredRow === draft.id
+    <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: colors.surface }}>
+      {header}
 
-            return (
-              <div
-                key={draft.id}
-                onClick={() => handleRowClick(draft)}
-                className="flex items-center gap-x-3 px-4 h-[56px] cursor-pointer transition-all duration-150 relative"
-                style={{
-                  backgroundColor: colors.surface,
-                }}
-                onMouseEnter={(e) => {
-                  setHoveredRow(draft.id)
-                  e.currentTarget.style.backgroundColor = colors.surfaceHover
-                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
-                }}
-                onMouseLeave={(e) => {
-                  setHoveredRow(null)
-                  e.currentTarget.style.backgroundColor = colors.surface
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-                role="button"
-                aria-label={`Draft to ${recipient}: ${draft.subject || '(No subject)'}`}
+      <div className="flex-1 overflow-y-auto scrollbar-thin min-h-0">
+        {loading ? (
+          <SkeletonRows count={5} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => fetchDrafts(1, true)} />
+        ) : drafts.length === 0 ? (
+          <EmptyState
+            icon={<FileText size={26} />}
+            title="No drafts"
+            description="Anything you start writing is saved here automatically."
+            action={
+              <Button
+                variant="primary"
+                onClick={() => navigate('/compose')}
+                leadingIcon={<PenSquare size={16} />}
               >
-                {/* Checkbox - visible on hover */}
-                <div
-                  className={`
-                    flex-shrink-0 transition-opacity duration-150
-                    ${isHovered ? 'opacity-100' : 'opacity-0'}
-                  `}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div
-                    className="w-4 h-4 border-2 rounded bg-transparent transition-colors"
-                    style={{
-                      borderColor: colors.textTertiary,
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = colors.primary}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = colors.textTertiary}
-                  />
-                </div>
+                Write a message
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            <div role="rowgroup">
+              {drafts.map((draft) => (
+                <OutboundRow
+                  key={draft.id}
+                  email={draft}
+                  variant="draft"
+                  selected={selectedIds.has(draft.id)}
+                  onOpen={openDraft}
+                  onToggleSelect={toggleSelect}
+                />
+              ))}
+            </div>
 
-                {/* Star placeholder (disabled for drafts) */}
-                <div className="flex-shrink-0 opacity-50">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={colors.textTertiary} strokeWidth="2">
-                    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
-                  </svg>
-                </div>
-
-                {/* Avatar */}
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0"
-                  style={{ backgroundColor: avatarColor }}
-                  title={recipient}
-                >
-                  {initials}
-                </div>
-
-                {/* Recipient name */}
-                <div
-                  className="w-40 md:w-52 flex-shrink-0 truncate"
-                  style={{
-                    fontSize: '14px',
-                    fontWeight: 400,
-                    color: colors.textPrimary,
-                  }}
-                >
-                  {recipient}
-                </div>
-
-                {/* Subject + Preview */}
-                <div className="flex-1 min-w-0 flex items-center gap-x-2">
-                  <span
-                    className="truncate"
-                    style={{
-                      fontSize: '14px',
-                      fontWeight: 400,
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {draft.subject || '(No subject)'}
-                  </span>
-                  <span
-                    className="truncate"
-                    style={{ fontSize: '14px', color: colors.textSecondary }}
-                  >
-                    — {preview}
-                  </span>
-                </div>
-
-                {/* Date */}
-                <div
-                  className="w-20 md:w-24 flex-shrink-0 text-right"
-                  style={{
-                    fontSize: '12px',
-                    color: colors.textSecondary,
-                    fontWeight: 400,
-                  }}
-                >
-                  {dateFormatted}
-                </div>
-              </div>
-            )
-          })
-        )}
-
-        {loadingMore && (
-          <div className="p-4 text-center text-sm text-gray-500">
-            Loading...
-          </div>
-        )}
-
-        {!loading && hasMore && drafts.length > 0 && (
-          <div className="p-3 border-t border-[#f1f3f4]">
-            <button
+            <LoadMore
               onClick={handleLoadMore}
-              className="w-full py-2 text-sm rounded-md transition-colors"
-              style={{
-                color: colors.primary,
-                backgroundColor: 'transparent',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.surfaceHover}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            >
-              Load More
-            </button>
-          </div>
+              loading={loadingMore}
+              hasMore={hasMore}
+              shown={drafts.length}
+              total={total}
+            />
+          </>
         )}
       </div>
+
+      {confirmation && <ConfirmationModal {...confirmation} />}
     </div>
   )
 }
