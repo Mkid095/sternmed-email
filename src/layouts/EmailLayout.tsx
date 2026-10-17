@@ -6,6 +6,7 @@ import SentDetailModal from '../features/sent/SentDetailModal'
 import { ToastContainer, useToastError } from '../features/shared/ui'
 import Topbar from '../components/layout/Topbar'
 import Sidebar from '../components/layout/Sidebar'
+import MobileNav from '../components/layout/MobileNav'
 
 /**
  * Mailbox shell.
@@ -43,15 +44,21 @@ export default function EmailLayout() {
       <Topbar onSignOut={handleSignOut} />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
-        />
+        {/* Below lg the 248px sidebar is unusable on a phone; MobileNav takes
+            over and carries every destination in its drawer. */}
+        <div className="hidden lg:contents">
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
+          />
+        </div>
 
         <main className="flex-1 min-w-0 overflow-hidden flex flex-col">
           <Outlet />
         </main>
       </div>
+
+      <MobileNav onSignOut={handleSignOut} />
 
       <SentDetailModal
         onReply={() => navigate('/compose')}

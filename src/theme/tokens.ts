@@ -212,4 +212,14 @@ export const layout = {
   sidebarWidthCollapsed: '68px',
   /** Height of one email row in the list. */
   rowHeight: '60px',
+  /**
+   * Bottom navigation on small screens. Exported so routed views can reserve
+   * the space — a message list that runs underneath it hides its last row.
+   */
+  bottomNavHeight: '62px',
+  /**
+   * The safe-area inset reserved below the bottom bar on notched devices.
+   * Added to the bar's own height rather than padding every child.
+   */
+  safeAreaBottom: 'env(safe-area-inset-bottom, 0px)',
 } as const

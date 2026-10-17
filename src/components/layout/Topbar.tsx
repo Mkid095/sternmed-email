@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Search, Settings, Menu as MenuIcon } from 'lucide-react'
+import { Search, Settings } from 'lucide-react'
 import { useTheme, layout, radius, fontSize } from '../../contexts/ThemeContext'
+import { BRAND_LOGO } from '../../config/brand'
 import { IconButton } from '../ui/Button'
 import ProfileMenu from './ProfileMenu'
 
@@ -79,16 +80,26 @@ export default function Topbar({ onSignOut, children }: TopbarProps) {
             aria-hidden="true"
             className="flex items-center justify-center flex-shrink-0"
             style={{
-              width: 30,
-              height: 30,
+              // White plate, not the brand navy: the logo is dark-on-transparent
+              // and has no contrast on navy (see BRAND_LOGO).
+              width: 34,
+              height: 34,
               borderRadius: radius.md,
-              backgroundColor: colors.primary,
-              color: '#fff',
+              backgroundColor: '#ffffff',
+              boxShadow: `0 0 0 1px ${colors.border}`,
+              overflow: 'hidden',
             }}
           >
-            <MenuIcon size={17} strokeWidth={2.3} />
+            <img
+              src={BRAND_LOGO.url}
+              alt=""
+              style={{ width: 26, height: 'auto', display: 'block' }}
+            />
           </span>
-          <span className="font-semibold" style={{ fontSize: fontSize.lg, letterSpacing: '-0.01em' }}>
+          <span
+            className="font-semibold hidden sm:inline"
+            style={{ fontSize: fontSize.lg, letterSpacing: '-0.01em' }}
+          >
             Sternmed&nbsp;Mail
           </span>
         </button>
@@ -96,7 +107,7 @@ export default function Topbar({ onSignOut, children }: TopbarProps) {
 
       {/* Search — centred on the remaining space rather than the viewport, so it
           stays optically centred against the content column. */}
-      <div className="flex-1 flex justify-center px-6">
+      <div className="flex-1 flex justify-center px-2 sm:px-6 min-w-0">
         <form
           role="search"
           onSubmit={onSubmit}
@@ -149,17 +160,21 @@ export default function Topbar({ onSignOut, children }: TopbarProps) {
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {children}
 
+        {/* On a phone Settings is a bottom-bar destination and a drawer item, so
+            repeating it here only squeezed the search field off the edge. */}
         <div
           className="flex items-center gap-0.5 ml-1 pl-1.5"
           style={{ borderLeft: `1px solid ${colors.divider}` }}
         >
-          <IconButton
-            label="Settings"
-            size={34}
-            onClick={() => navigate('/settings')}
-          >
-            <Settings size={18} strokeWidth={1.9} />
-          </IconButton>
+          <div className="hidden sm:block">
+            <IconButton
+              label="Settings"
+              size={34}
+              onClick={() => navigate('/settings')}
+            >
+              <Settings size={18} strokeWidth={1.9} />
+            </IconButton>
+          </div>
 
           <ProfileMenu onSignOut={onSignOut} />
         </div>

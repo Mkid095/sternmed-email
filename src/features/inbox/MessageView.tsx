@@ -322,7 +322,9 @@ export default function MessageView() {
         </IconButton>
 
         <span
-          className="tabular mx-1"
+          // nowrap + flex-shrink-0: without them the toolbar squeezed this
+          // counter until "1 of 1" wrapped onto three lines.
+          className="tabular mx-1 whitespace-nowrap flex-shrink-0"
           style={{ fontSize: fontSize.sm, color: colors.textSecondary }}
         >
           {threadIndex >= 0 ? `${threadIndex + 1} of ${thread.length}` : ''}
@@ -428,9 +430,14 @@ export default function MessageView() {
                 <span style={{ fontSize: fontSize.md, fontWeight: 600, color: colors.textPrimary }}>
                   {email.senderName || email.senderEmail}
                 </span>
-                <span style={{ fontSize: fontSize.sm, color: colors.textTertiary }}>
-                  &lt;{email.senderEmail}&gt;
-                </span>
+                {/* Only when the display name differs. Many senders set the
+                    name to the address itself, which rendered the same string
+                    twice — "jessie@… " followed by "<jessie@…>". */}
+                {email.senderName && email.senderName !== email.senderEmail && (
+                  <span style={{ fontSize: fontSize.sm, color: colors.textTertiary }}>
+                    &lt;{email.senderEmail}&gt;
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: fontSize.sm, color: colors.textSecondary }}>
                 to me
@@ -606,7 +613,9 @@ export default function MessageView() {
           Forward
         </Button>
         <div className="flex-1" />
-        <span style={{ fontSize: fontSize.xs, color: colors.textTertiary }}>
+        {/* Keyboard hint is meaningless on a touch device and was squeezing
+            the Reply/Forward row on a phone. */}
+        <span className="hidden lg:inline" style={{ fontSize: fontSize.xs, color: colors.textTertiary }}>
           Press <kbd>j</kbd> / <kbd>k</kbd> to move between messages · <kbd>u</kbd> toggles read
         </span>
       </div>

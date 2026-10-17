@@ -626,24 +626,38 @@ export default function ComposeView() {
           <ArrowLeft size={18} />
         </IconButton>
 
-        <div className="flex flex-col">
-          <h1 className="font-semibold" style={{ fontSize: fontSize.lg, color: colors.textPrimary }}>
+        {/* min-w-0 + flex-1 lets the title collapse so the action buttons stay
+            on screen. Without it the three buttons pushed Send past the right
+            edge at 390px, making the primary action unreachable on a phone. */}
+        <div className="flex flex-col min-w-0 flex-1">
+          <h1
+            className="font-semibold truncate"
+            style={{ fontSize: fontSize.lg, color: colors.textPrimary }}
+          >
             {replyToId ? 'Reply' : 'New message'}
           </h1>
           {draftStatusText && (
-            <span className="tabular" style={{ fontSize: fontSize.xs, color: colors.textTertiary }}>
+            <span className="tabular truncate" style={{ fontSize: fontSize.xs, color: colors.textTertiary }}>
               {draftStatusText}
             </span>
           )}
         </div>
 
-        <div className="flex-1" />
-
-        <Button variant="ghost" size="sm" onClick={handleDiscard} leadingIcon={<Trash2 size={15} />}>
-          Discard
-        </Button>
-        <Button variant="secondary" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
-          Save draft
+        {/* Save draft is redundant on a phone — the autosave debounce already
+            writes the draft, and the status line above reports it. */}
+        <div className="hidden sm:block">
+          <Button variant="secondary" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
+            Save draft
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDiscard}
+          aria-label="Discard message"
+          leadingIcon={<Trash2 size={15} />}
+        >
+          <span className="hidden sm:inline">Discard</span>
         </Button>
         <Button
           variant="primary"
@@ -656,19 +670,19 @@ export default function ComposeView() {
         </Button>
       </div>
 
-      {/* Editor */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-6 scrollbar-thin">
-        <div
-          className="mx-auto flex flex-col"
-          style={{
-            maxWidth: 820,
-            backgroundColor: colors.surface,
-            border: `1px solid ${colors.divider}`,
-            borderRadius: radius.lg,
-            boxShadow: colors.shadow,
-            overflow: 'hidden',
-          }}
-        >
+      {/* Editor.
+
+          Full-bleed surface, not a card. It used to sit in a 24px-padded
+          canvas inside a bordered, shadowed 820px panel with further padding
+          on every field, so the whole screen read as a floating dialog
+          stacked on top of the app. Mail clients treat compose as a surface,
+          not a modal: one flat background, hairline row dividers, and a
+          max-width only to keep lines readable on a wide monitor. */}
+      <div
+        className="flex-1 overflow-y-auto min-h-0 scrollbar-thin"
+        style={{ backgroundColor: colors.surface }}
+      >
+        <div className="mx-auto w-full flex flex-col" style={{ maxWidth: 860 }}>
           {/* From */}
           <div
             className="flex items-center gap-3 px-4 py-2.5"
